@@ -32,9 +32,9 @@
 Spcfid *
 spc_walk(Spcfsys *fs, char *path)
 {
-	int n;
+	int n, ecode;
 	u32 nfid;
-	char *fname, *s, *t;
+	char *fname, *s, *t, *ename;
 	char *wnames[MAXWELEM];
 	Spfcall *tc, *rc;
 	Spcfid *fid;
@@ -87,10 +87,16 @@ error:
 	free(rc);
 	free(tc);
 	if (nfid == fid->fid) {
+		sp_rerror(&ename, &ecode);
+		if (ename)
+			ename = strdup(ename);
+		sp_werror(NULL, 0);
 		tc = sp_create_tclunk(fid->fid);
 		if (!spc_rpc(fs, tc, &rc))
 			spc_fid_free(fid);
 
+		sp_werror(ename, ecode);
+		free(ename);
 		free(rc);
 		free(tc);
 	}

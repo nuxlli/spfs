@@ -70,7 +70,7 @@ static void ustat2qid(struct stat *st, Spqid *qid);
 static u8 ustat2qidtype(struct stat *st);
 static u32 umode2npmode(mode_t umode, int dotu);
 static mode_t npstat2umode(Spstat *st, int dotu);
-static void ustat2npwstat(char *path, struct stat *st, Spwstat *wstat, int dotu);
+static void ustat2npwstat(char *path, struct stat *st, Spwstat *wstat, int dotu, Spuserpool *);
 
 static Spfcall* npfs_attach(Spfid *fid, Spfid *afid, Spstr *uname, Spstr *aname, u32 n_uname);
 static int npfs_clone(Spfid *fid, Spfid *newfid);
@@ -351,7 +351,7 @@ npstat2umode(Spstat *st, int dotu)
 }
 
 static void
-ustat2npwstat(char *path, struct stat *st, Spwstat *wstat, int dotu)
+ustat2npwstat(char *path, struct stat *st, Spwstat *wstat, int dotu, Spuserpool *up)
 {
 	int err;
 	Spuser *u;
@@ -365,8 +365,8 @@ ustat2npwstat(char *path, struct stat *st, Spwstat *wstat, int dotu)
 	wstat->mtime = st->st_mtime;
 	wstat->length = st->st_size;
 
-	u = sp_uid2user(st->st_uid);
-	g = sp_gid2group(st->st_gid);
+	u = up->uid2user(up, st->st_uid);
+	g = up->gid2group(up, st->st_gid);
 	
 	wstat->uid = u?u->uname:"???";
 	wstat->gid = g?g->gname:"???";
@@ -703,14 +703,16 @@ out:
 }
 
 static u32
-npfs_read_dir(Fid *f, u8* buf, u64 offset, u32 count, int dotu)
+npfs_read_dir(Spfid *fid, u8* buf, u64 offset, u32 count, int dotu)
 {
 	int i, n, plen;
 	char *dname, *path;
 	struct dirent *dirent;
 	struct stat st;
+	Fid *f;
 	Spwstat wstat;
 
+	f = fid->aux;
 	if (offset == 0) {
 		rewinddir(f->dir);
 		f->diroffset = 0;
@@ -742,7 +744,7 @@ npfs_read_dir(Fid *f, u8* buf, u64 offset, u32 count, int dotu)
 			return 0;
 		}
 
-		ustat2npwstat(path, &st, &wstat, dotu);
+		ustat2npwstat(path, &st, &wstat, dotu, fid->conn->srv->upool);
 		i = sp_serialize_stat(&wstat, buf + n, count - n - 1, dotu);
 		free(wstat.extension);
 		free(path);
@@ -777,7 +779,7 @@ npfs_read(Spfid *fid, u64 offset, u32 count, Spreq *req)
 	ret = sp_alloc_rread(count);
 	npfs_change_user(fid->user);
 	if (f->dir)
-		n = npfs_read_dir(f, ret->data, offset, count, fid->conn->dotu);
+		n = npfs_read_dir(fid, ret->data, offset, count, fid->conn->dotu);
 	else {
 		if(mmapreads) {
 			struct stat s;
@@ -878,7 +880,7 @@ npfs_stat(Spfid *fid)
 	if (err < 0)
 		create_rerror(err);
 
-	ustat2npwstat(f->path, &f->stat, &wstat, fid->conn->dotu);
+	ustat2npwstat(f->path, &f->stat, &wstat, fid->conn->dotu, fid->conn->srv->upool);
 
 	ret = sp_create_rstat(&wstat, fid->conn->dotu);
 	free(wstat.extension);
@@ -898,9 +900,11 @@ npfs_wstat(Spfid *fid, Spstat *stat)
 	Spuser *user;
 	Spgroup *group;
 	struct utimbuf tb;
+	Spuserpool *up;
 
 	ret = NULL;
 	f = fid->aux;
+	up = fid->conn->srv->upool;
 	npfs_change_user(fid->user);
 	err = fidstat(f);
 	if (err < 0) {
@@ -918,7 +922,7 @@ npfs_wstat(Spfid *fid, Spstat *stat)
 
 	if (uid == -1 && stat->uid.len) {
 		s = sp_strdup(&stat->uid);
-		user = sp_uname2user(s);
+		user = up->uname2user(up, s);
 		free(s);
 		if (!user) {
 			sp_werror(Eunknownuser, EIO);
@@ -930,7 +934,7 @@ npfs_wstat(Spfid *fid, Spstat *stat)
 
 	if (gid == -1 && stat->gid.len) {
 		s = sp_strdup(&stat->gid);
-		group = sp_gname2group(s);
+		group = up->gname2group(up, s);
 		free(s);
 		if (!group) {
 			sp_werror(Eunknownuser, EIO);

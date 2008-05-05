@@ -21,6 +21,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+extern Spuserpool *sp_unix_users;
+
 /* fcall.c */
 Spfcall *sp_version(Spreq *req, Spfcall *tc);
 Spfcall *sp_auth(Spreq *req, Spfcall *tc);
@@ -41,11 +43,15 @@ void sp_srv_add_req(Spsrv *srv, Spreq *req);
 void sp_srv_remove_req(Spsrv *srv, Spreq *req);
 void sp_srv_add_workreq(Spsrv *srv, Spreq *req);
 void sp_srv_remove_workreq(Spsrv *srv, Spreq *req);
+Spreq *sp_req_alloc(Spconn *conn, Spfcall *tc);
+void sp_req_free(Spreq *req);
+void sp_srv_process_fcall(Spconn *conn, Spfcall *tc);
 
 /* fmt.c */
 int sp_printstat(FILE *f, Spstat *st, int dotu);
 int sp_dump(FILE *f, u8 *data, int datalen);
 
-/* conn.c */
-Spfcall *sp_conn_new_incall(Spconn *conn);
-void sp_conn_free_incall(Spconn *, Spfcall *);
+
+
+
+

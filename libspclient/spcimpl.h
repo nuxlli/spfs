@@ -48,6 +48,7 @@ struct Spcfsys {
 	int		dotu;
 	u32		msize;
 	Spcfid*		root;
+	Spcfid*		afid;
 
 	char*		ename;
 	int		ecode;
@@ -63,6 +64,8 @@ struct Spcfsys {
 
 	int		destroyed;
 	int		in_notify;
+	char*		laddr;
+	char*		raddr;
 };
 
 Spcfsys *spc_create_fsys(int fd, int msize);

@@ -190,10 +190,6 @@ spfile_find(Spfile *dir, char *name)
 static int
 check_perm(u32 fperm, Spuser *fuid, Spgroup *fgid, Spuser *user, u32 perm)
 {
-	int i, n;
-	Spgroup *group;
-	gid_t *gids;
-
 	if (!user)
 		goto error;
 
@@ -207,14 +203,9 @@ check_perm(u32 fperm, Spuser *fuid, Spgroup *fgid, Spuser *user, u32 perm)
 	if (fuid==user && ((fperm>>6)&7) & perm)
 		return 1;
 
-	if (((fperm>>3)&7) & perm) {
-		n = sp_usergroups(user, &gids);
-		for(i = 0; i < n; i++) {
-			group = sp_gid2group(gids[i]);
-			if (fgid == group)
-				return 1;
-		}
-	}
+	if (((fperm>>3)&7) & perm)
+		if (user->upool->ismember(user->upool, user, fgid))
+			return 1;
 
 error:
 	sp_werror(Eperm, EPERM);
@@ -310,7 +301,7 @@ spfile_fiddestroy(Spfid *fid)
 	Spfileops *fops;
 
 //	if (fid->conn->srv->debuglevel)
-//		fprintf(stderr, "destroy fid %d\n", fid->fid);
+//		fprintf(stderr, "spfile_fiddestroy fid %d\n", fid->fid);
 
 	f = fid->aux;
 	if (!f)
@@ -334,35 +325,19 @@ spfile_fiddestroy(Spfid *fid)
 }
 
 Spfcall*
-spfile_attach(Spfid *fid, Spfid *afid, Spstr *uname, Spstr *aname)
+spfile_attach(Spfid *fid, Spfid *afid, Spstr *uname, Spstr *aname, u32 n_uname)
 {
 	Spfile *root;
 	Spfilefid *f;
-	char *u;
-	Spuser *user;
 
-	root = (Spfile*) fid->conn->srv->treeaux;
-
-	u = sp_strdup(uname);
-	if (!u)
+	root = fid->conn->srv->treeaux;
+	if (!spfile_checkperm(root, fid->user, 4)) 
 		return NULL;
 
-	user = sp_uname2user(u);
-	free(u);
-	if (!user) {
-		sp_werror(Eunknownuser, EIO);
-		return NULL;
-	}
-
-	if (!spfile_checkperm(root, user, 4)) 
-		return NULL;
-
-	fid->user = user;
 	f = spfile_fidalloc(root, fid);
 	if (!f)
 		return NULL;
 
-	fid->user = user;
 	fid->aux = f;
 	sp_fid_incref(fid);
 
@@ -466,7 +441,7 @@ spfile_open(Spfid *fid, u8 mode)
 
 	if (mode & Oexcl) {
 		if (file->excl) {
-			sp_werror(Eopen, EPERM);
+			sp_werror(Eopen, EBUSY);
 			return NULL;
 		}
 
@@ -482,7 +457,7 @@ spfile_open(Spfid *fid, u8 mode)
 
 		if (mode & Otrunc) {
 			if (!fops->wstat) {
-				sp_werror(Eperm, EPERM);
+				sp_werror(Eperm, ENOTSUP);
 				goto done;
 			}
 
@@ -563,7 +538,7 @@ spfile_create(Spfid *fid, Spstr* name, u32 perm, u8 mode, Spstr* extension)
 
 	dops = dir->ops;
 	if (!dops->create) {
-		sp_werror(Eperm, EPERM);
+		sp_werror(Eperm, ENOTSUP);
 		goto done;
 	}
 
@@ -692,6 +667,9 @@ spfile_write(Spfid *fid, u64 offset, u32 count, u8 *data, Spreq *req)
 	}
 
 	n = (*fops->write)(f, offset, count, data, req);
+
+	if (file->length < (offset + n))
+		file->length = offset + n;
 
 	sp_rerror(&ename, &ecode);
 	if (!ename)

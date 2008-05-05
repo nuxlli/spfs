@@ -472,7 +472,7 @@ sp_create_tauth(u32 fid, char *uname, char *aname, u32 n_uname, int dotu)
 	buf_put_str(bufp, uname, &fc->uname);
 	buf_put_str(bufp, aname, &fc->aname);
 	if (dotu)
-		buf_put_int32(bufp, fid, &fc->n_uname);
+		buf_put_int32(bufp, n_uname, &fc->n_uname);
 
 	return sp_post_check(fc, bufp);
 }
@@ -1072,9 +1072,9 @@ sp_deserialize(Spfcall *fc, u8 *data, int dotu)
 		fc->afid = buf_get_int32(bufp);
 		buf_get_str(bufp, &fc->uname);
 		buf_get_str(bufp, &fc->aname);
-		if (dotu && !buf_check_end(bufp)) {
+		if (dotu && !buf_check_end(bufp))
 			fc->n_uname = buf_get_int32(bufp);
-		} else
+		else
 			fc->n_uname = ~0;
 		break;
 
@@ -1091,9 +1091,9 @@ sp_deserialize(Spfcall *fc, u8 *data, int dotu)
 		fc->afid = buf_get_int32(bufp);
 		buf_get_str(bufp, &fc->uname);
 		buf_get_str(bufp, &fc->aname);
-		if (dotu && !buf_check_end(bufp)) {
+		if (dotu && !buf_check_end(bufp))
 			fc->n_uname = buf_get_int32(bufp);
-		} else
+		else
 			fc->n_uname = ~0;
 		break;
 

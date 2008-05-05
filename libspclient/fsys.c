@@ -41,7 +41,7 @@ struct Spcrpc {
 };
 
 int spc_chatty;
-int spc_msize = 8216;
+int spc_msize = 32768 + IOHDRSZ;
 char *Econn = "connection closed";
 static char *Emismatch = "response mismatch";
 static char *Eflush = "request flushed";
@@ -63,6 +63,7 @@ spc_create_fsys(int fd, int msize)
 	fs->dotu = 0;
 	fs->msize = msize;
 	fs->root = NULL;
+	fs->afid = NULL;
 	fs->tagpool = NULL;
 	fs->fidpool = NULL;
 	fs->ifcall = NULL;
@@ -74,6 +75,8 @@ spc_create_fsys(int fd, int msize)
 	fs->ecode = 0;
 	fs->in_notify = 0;
 	fs->destroyed = 0;
+	fs->laddr = NULL;
+	fs->raddr = NULL;
 
 	fs->spfd = spfd_add(fd, spc_notify, fs);
 	if (!fs->spfd)
@@ -103,15 +106,26 @@ spc_remount(Spcfsys *fs)
 void
 spc_disconnect_fsys(Spcfsys *fs)
 {
+	int ecode;
+	char *ename;
+	Spcreq *req, *req1;
+
 	sp_rerror(&fs->ename, &fs->ecode);
-	if (fs->ename) {
+	if (fs->ecode) {
 		fs->ename = strdup(fs->ename);
 		if (!fs->ename) 
 			fs->ename = Enomem;
 	}
 
-	if (fs->root)
+	if (fs->root) {
 		spc_fid_free(fs->root);
+		fs->root = NULL;
+	}
+
+	if (fs->afid) {
+		spc_fid_free(fs->afid);
+		fs->afid = NULL;
+	}
 
 	if (fs->fd >= 0) {
 		shutdown(fs->fd, 2);
@@ -123,29 +137,9 @@ spc_disconnect_fsys(Spcfsys *fs)
 		spfd_remove(fs->spfd);
 		fs->spfd = NULL;
 	}
-}
 
-void
-spc_destroy_fsys(Spcfsys *fs)
-{
-	int ecode;
-	char *ename;
-	Spcreq *req, *req1;
-
-	assert(fs->fd<0);
-	if (fs->tagpool) {
-		spc_destroy_pool(fs->tagpool);
-		fs->tagpool = NULL;
-	}
-
-	if (fs->fidpool) {
-		spc_destroy_pool(fs->fidpool);
-		fs->fidpool = NULL;
-	}
-
-	free(fs->ifcall);
 	sp_rerror(&ename, &ecode);
-	if (ename) {
+	if (ecode) {
 		ename = strdup(ename);
 		if (!ename) {
 			ename = Enomem;
@@ -161,6 +155,7 @@ spc_destroy_fsys(Spcfsys *fs)
 		free(req);
 		req = req1;
 	}
+	fs->pend_first = NULL;
 
 	req = fs->sent_reqs;
 	while (req != NULL) {
@@ -169,18 +164,51 @@ spc_destroy_fsys(Spcfsys *fs)
 		free(req);
 		req = req1;
 	}
+	fs->sent_reqs = NULL;
 
 	sp_werror(ename, ecode);
 	if (ename != Enomem)
 		free(ename);
+}
 
+void
+spc_destroy_fsys(Spcfsys *fs)
+{
+	assert(fs->fd<0);
+	if (fs->tagpool) {
+		spc_destroy_pool(fs->tagpool);
+		fs->tagpool = NULL;
+	}
+
+	if (fs->fidpool) {
+		spc_destroy_pool(fs->fidpool);
+		fs->fidpool = NULL;
+	}
+
+	free(fs->ifcall);
 	if (fs->ename != Enomem)
 		free(fs->ename);
 
+	free(fs->raddr);
+	fs->raddr = NULL;
+	free(fs->laddr);
+	fs->laddr = NULL;
 	if (fs->in_notify)
 		fs->destroyed = 1;
 	else
 		free(fs);
+}
+
+char *
+spc_get_local_address(Spcfsys *fs)
+{
+	return fs->laddr;
+}
+
+char *
+spc_get_remote_address(Spcfsys *fs)
+{
+	return fs->raddr;
 }
 
 void
@@ -208,10 +236,8 @@ spc_request_flushed(Spcreq *r)
 
 		sp_werror(Eflush, EIO);
 		(*req->cb)(req->cba, NULL);
-		if (ename) {
-			sp_werror(ename, ecode);
-			free(ename);
-		}
+		sp_werror(ename, ecode);
+		free(ename);
 	}
 
 	/* if req->flushed is set, the request is not freed if response arrives */
@@ -249,9 +275,18 @@ spc_flush_request(Spcreq *req)
 void
 spc_flush_requests(Spcfsys *fs, Spcfid *fid)
 {
+	int ecode;
+	char *ename;
 	Spcreq *preq, *req, *req1;
 
+	if (fs->fd < 0)
+		return;
+
 	// check the unsent requests
+	sp_rerror(&ename, &ecode);
+	if (ename)
+		ename = strdup(ename);
+
 	sp_werror(Eflush, EIO);
 	preq = NULL;
 	req = fs->pend_first;
@@ -285,6 +320,8 @@ spc_flush_requests(Spcfsys *fs, Spcfid *fid)
 			req = req->next;
 		}
 	}
+	sp_werror(ename, ecode);
+	free(ename);
 }
 
 static void
@@ -431,12 +468,16 @@ spc_fd_write(Spcfsys *fs)
 static void
 spc_notify(Spfd *spfd, void *aux)
 {
-	int ecode;
-	char *ename;
+	int ecode, ec;
+	char *ename, *en;
 	Spcfsys *fs;
 
 	fs = aux;
 	fs->in_notify++;
+	sp_rerror(&ename, &ecode);
+	if (ename)
+		ename = strdup(ename);
+
 	sp_werror(NULL, 0);
 	if (spfd_can_read(spfd))
 		spc_fd_read(fs);
@@ -456,12 +497,17 @@ spc_notify(Spfd *spfd, void *aux)
 		spc_disconnect_fsys(fs);
 
 error:
-	sp_rerror(&ename, &ecode);
-	if (ename) {
+	sp_rerror(&en, &ec);
+	if (ec) {
 		if (spc_chatty)
-			fprintf(stderr, "Error: %s: %d\n", ename, ecode);
+			fprintf(stderr, "Error: %s: %d\n", en, ec);
 		sp_werror(NULL, 0);
 	}
+
+	if (ecode)
+		sp_werror(ename, ecode);
+
+	free(ename);
 	fs->in_notify--;
 }
 
@@ -470,21 +516,26 @@ spc_rpcnb(Spcfsys *fs, Spfcall *tc, void (*cb)(void *, Spfcall *), void *cba)
 {
 	Spcreq *req;
 
+	if (!fs->spfd) {
+		sp_werror("disconnected", ECONNRESET);
+		goto error;
+	}
+
 	if (fs->ename) {
 		sp_werror(fs->ename, fs->ecode);
-		return -1;
+		goto error;
 	}
 
 	req = sp_malloc(sizeof(*req));
 	if (!req)
-		return -1;
+		goto error;
 
 	if (tc->type != Tversion) {
 		tc->tag = spc_get_id(fs->tagpool);
 		if (tc->tag == NOTAG) {
 			free(req);
 			sp_werror("tag pool full", EIO);
-			return -1;
+			goto error;
 		}
 
 		sp_set_tag(tc, tc->tag);
@@ -509,6 +560,10 @@ spc_rpcnb(Spcfsys *fs, Spfcall *tc, void (*cb)(void *, Spfcall *), void *cba)
 		spc_fd_write(fs);
 
 	return 0;
+
+error:
+	(*cb)(cba, NULL);
+	return -1;
 }
 
 static void
@@ -521,12 +576,12 @@ spc_rpc_cb(void *cba, Spfcall *rc)
 	r = cba;
 	r->rc = rc;
 	sp_rerror(&ename, &ecode);
-	if (!ename) {
+	if (ecode == 0) {
 		ename = r->fs->ename;
 		ecode = r->fs->ecode;
 	}
 
-	if (ename) {
+	if (ecode) {
 		r->ecode = ecode;
 		r->ename = strdup(ename);
 		if (!r->ename) {

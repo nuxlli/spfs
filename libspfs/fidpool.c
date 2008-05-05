@@ -40,13 +40,17 @@ sp_fidpool_destroy(Spfid **pool)
 {
 	int i;
 	Spfid *f, *ff;
+	Spsrv *srv;
 
 	for(i = 0; i < FID_HTABLE_SIZE; i++) {
 		f = pool[i];
 		while (f != NULL) {
 			ff = f->next;
-			if (f->conn->srv->fiddestroy)
-				(*f->conn->srv->fiddestroy)(f);
+			srv = f->conn->srv;
+			if (f->type&Qtauth && srv->auth && srv->auth->clunk)
+				(*srv->auth->clunk)(f);
+			else if (!(f->type&Qtauth) && srv->fiddestroy)
+				(*srv->fiddestroy)(f);
 			free(f);
 			f = ff;
 		}
@@ -107,7 +111,6 @@ sp_fid_create(Spconn *conn, u32 fid, void *aux)
 	f->omode = ~0;
 	f->type = 0;
 	f->diroffset = 0;
-	f->dev = 0;
 	f->user = NULL;
 	f->aux = aux;
 
@@ -122,6 +125,7 @@ sp_fid_destroy(Spfid *fid)
 {
 	int hash;
 	Spconn *conn;
+	Spsrv *srv;
 	Spfid **htable, *f, **prevp;
 
 	conn = fid->conn;
@@ -135,8 +139,15 @@ sp_fid_destroy(Spfid *fid)
 	while (f != NULL) {
 		if (f->fid == fid->fid) {
 			*prevp = f->next;
-			if (f->conn->srv->fiddestroy)
-				(*f->conn->srv->fiddestroy)(f);
+			srv = f->conn->srv;
+			if (f->type & Qtauth && srv->auth && srv->auth->clunk)
+				(*srv->auth->clunk)(f);
+			else if (!(f->type&Qtauth) && srv->fiddestroy)
+				(*srv->fiddestroy)(f);
+
+			if (f->user)
+				sp_user_decref(f->user);
+
 			free(f);
 			break;
 		}

@@ -31,11 +31,11 @@
 #include "spcimpl.h"
 
 Spcfsys*
-spc_mount(int fd, char *aname, char *uname, u32 n_uname)
+spc_mount(int fd, char *aname, Spuser *user, 
+	int (*auth)(Spcfid *afid, Spuser *user, void *aux), void *aux)
 {
 	Spcfsys *fs;
 	Spfcall *tc, *rc;
-	Spuser *user;
 
 	fs = spc_create_fsys(fd, spc_msize);
 	if (!fs)
@@ -53,25 +53,39 @@ spc_mount(int fd, char *aname, char *uname, u32 n_uname)
 		sp_werror("unsupported 9P version", EIO);
 		goto error;
 	}
+
+	if (fs->msize > rc->msize)
+		fs->msize = rc->msize;
+
 	free(tc);
 	free(rc);
 	tc = rc = NULL;
+
+	if (auth) {
+		fs->afid = spc_fid_alloc(fs);
+		if (!fs->afid)
+			goto error;
+
+		tc = sp_create_tauth(fs->afid->fid, user?user->uname:NULL, aname, 
+			user?user->uid:-1, fs->dotu);
+		if (spc_rpc(fs, tc, &rc) < 0) {
+			sp_werror(NULL, 0);
+			spc_fid_free(fs->afid);
+			fs->afid = NULL;
+		} else if ((*auth)(fs->afid, user, aux) < 0)
+				goto error;
+
+		free(tc);
+		free(rc);
+		tc = rc = NULL;
+	}
 
 	fs->root = spc_fid_alloc(fs);
 	if (!fs->root) 
 		goto error;
 
-	if (!uname && n_uname) {
-		user = sp_uid2user(n_uname);
-		if (user)
-			uname = user->uname;
-	} else if (uname && !n_uname) {
-		user = sp_uname2user(uname);
-		if (user)
-			n_uname = user->uid;
-	}
-
-	tc = sp_create_tattach(fs->root->fid, NOFID, uname, aname, n_uname, fs->dotu);
+	tc = sp_create_tattach(fs->root->fid, fs->afid?fs->afid->fid:NOFID, 
+		user->uname, aname, user->uid, fs->dotu);
 	if (spc_rpc(fs, tc, &rc) < 0)
 		goto error;
 

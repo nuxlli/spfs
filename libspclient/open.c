@@ -34,7 +34,8 @@ static int spc_clunk(Spcfid *fid);
 Spcfid*
 spc_create(Spcfsys *fs, char *path, u32 perm, int mode)
 {
-	char *fname, *pname;
+	int ecode;
+	char *fname, *pname, *ename;
 	Spfcall *tc, *rc;
 	Spcfid *fid;
 
@@ -75,7 +76,14 @@ spc_create(Spcfsys *fs, char *path, u32 perm, int mode)
 	return fid;
 
 error:
+	sp_rerror(&ename, &ecode);
+	if (ename)
+		ename = strdup(ename);
+
+	sp_werror(NULL, 0);
 	spc_clunk(fid);
+	sp_werror(ename, ecode);
+	free(ename);
 
 	free(tc);
 	if (pname)

@@ -39,10 +39,12 @@ struct Spcfid {
 extern int spc_chatty;
 extern int spc_msize;
 
-Spcfsys* spc_mount(int fd, char *aname, char *uname, u32 n_uname);
+Spcfsys* spc_mount(int fd, char *aname, Spuser *user,
+	int (*auth)(Spcfid *afid, Spuser *user, void *aux), void *aux);
 void spc_remount(Spcfsys *);
 void spc_umount(Spcfsys *fs);
-Spcfsys * spc_netmount(char *address, char *uname, int dfltport);
+Spcfsys * spc_netmount(char *address, Spuser *user, int dfltport,
+	int (*auth)(Spcfid *afid, Spuser *user, void *aux), void *aux);
 Spcfid* spc_create(Spcfsys *fs, char *path, u32 perm, int mode);
 Spcfid* spc_open(Spcfsys *fs, char *path, int mode);
 int spc_close(Spcfid *fid);
@@ -51,6 +53,7 @@ int spc_read(Spcfid *fid, u8 *buf, u32 count, u64 offset);
 int spc_write(Spcfid *fid, u8 *buf, u32 count, u64 offset);
 int spc_dirread(Spcfid *fid, Spwstat **stat);
 Spwstat *spc_stat(Spcfsys *fs, char *path);
+int spc_wstat(Spcfsys *fs, char *path, Spwstat *wst);
 Spcfd *spcfd_add(Spcfid *fid, void (*notify)(Spcfd *, void *), void *aux);
 Spcfd *spcfd_add_fd(int fd, void (*notify)(Spcfd *, void *), void *aux);
 void spcfd_remove(Spcfd *spcfd);
@@ -62,4 +65,5 @@ void spcfd_start_loop(void);
 void spcfd_stop_loop(void);
 int spcfd_read(Spcfd *spcfd, void *buf, int buflen);
 int spcfd_write(Spcfd *spcfd, void *buf, int buflen);
-
+char *spc_get_local_address(Spcfsys *fs);
+char *spc_get_remote_address(Spcfsys *fs);

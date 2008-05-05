@@ -29,68 +29,92 @@
 #include "spfs.h"
 #include "spfsimpl.h"
 
+static Spfcall *sp_conn_new_incall(Spconn *conn);
+static void sp_conn_free_incall(Spconn *, Spfcall *);
+static void sp_conn_notify(Spfd *spfd, void *aux);
+static int sp_conn_read(Spconn *conn);
+static void sp_conn_write(Spconn *conn);
+
 Spconn*
-sp_conn_create(Spsrv *srv)
+sp_conn_create(Spsrv *srv, char *address, int fdin, int fdout)
 {
 	Spconn *conn;
 
-	conn = sp_malloc(sizeof(*conn));
+	conn = malloc(sizeof(*conn));
 	if (!conn)
 		return NULL;
 
+	conn->address = address;
 	conn->srv = srv;
-	conn->address = NULL;
 	conn->msize = srv->msize;
 	conn->dotu = srv->dotu;
-	conn->flags = 0;
-	conn->ireqs = NULL;
-	conn->oreqs = NULL;
-	conn->caux = NULL;
 	conn->fidpool = NULL;
 	conn->freercnum = 0;
 	conn->freerclist = NULL;
-	conn->reset = NULL;
-	conn->shutdown = NULL;
-	conn->dataout = NULL;
+	conn->ifcall = NULL;
+	conn->ofcall_pos = 0;
+	conn->ofcall_first = NULL;
+	conn->ofcall_last = NULL;
+	conn->fdin = fdin;
+	conn->fdout = fdout;
 
+	conn->spfdin = spfd_add(fdin, sp_conn_notify, conn);
+	if (!conn->spfdin) {
+		free(conn);
+		return NULL;
+	}
+
+	if (fdin == fdout)
+		conn->spfdout = conn->spfdin;
+	else {
+		conn->spfdout = spfd_add(fdout, sp_conn_notify, conn);
+		if (!conn->spfdout) {
+			spfd_remove(conn->spfdin);
+			free(conn);
+			return NULL;
+		}
+	}
+
+	sp_srv_add_conn(srv, conn);
 	return conn;
 }
 
-void
+static void
 sp_conn_destroy(Spconn *conn)
 {
+	sp_srv_remove_conn(conn->srv, conn);
+	sp_conn_reset(conn, 0, 0);
+	close(conn->fdin);
+	if (conn->fdout != conn->fdin)
+		close(conn->fdin);
+
+	spfd_remove(conn->spfdin);
+	if (conn->spfdout != conn->spfdin)
+		spfd_remove(conn->spfdout);
 	free(conn->address);
 	free(conn);
 }
 
 void
-sp_conn_shutdown(Spconn *conn)
-{
-	sp_srv_remove_conn(conn->srv, conn);
-	sp_conn_reset(conn, 0, 0);
-	conn->flags |= Cshutdown;
-	if (conn->flags & Creset)
-		return;
-
-	if (conn->shutdown && !(*conn->shutdown)(conn)) {
-		conn->flags |= Cshutdown;
-		return;
-	}
-
-	sp_conn_destroy(conn);
-}
-
-void
 sp_conn_reset(Spconn *conn, u32 msize, int dotu)
 {
-	char buf[32];
 	Spsrv *srv;
-	Spreq *req, *req1, *vreq;
+	Spreq *req, *req1;
 	Spfcall *fc, *fc1, *rc;
 
 	srv = conn->srv;
-	conn->flags |= Creset;
-	vreq = NULL;
+
+	/* first flush all outstanding requests */
+	req = srv->reqs_first;
+	while (req != NULL) {
+		req1 = req->next;
+		if (req->conn == conn) {
+			sp_srv_remove_req(srv, req);
+			sp_conn_respond(conn, req->tcall, NULL);
+			sp_req_free(req);
+		}
+		req = req1;
+	}
 
 	/* flush all working requests */
 	/* if there are pending requests, the server should define flush, 
@@ -98,50 +122,33 @@ sp_conn_reset(Spconn *conn, u32 msize, int dotu)
 again:
 	req = conn->srv->workreqs;
 	while (req != NULL) {
-		if (req->conn == conn) {
-			if (msize>0 && req->tcall->type==Tversion)
-				vreq = req;
-			else {
-				if (srv->flush)
-					rc = (*srv->flush)(req);
-				else
-					rc = NULL;
+		if (req->conn == conn && (msize==0 || req->tcall->type != Tversion)) {
+			if (srv->flush)
+				rc = (*srv->flush)(req);
+			else
+				rc = NULL;
 
-				free(rc);
-				goto again;
-			}
+			goto again;
 		}
 
 		req = req->next;
 	}
 
-	if (conn->reset)
-		(*conn->reset)(conn);
-	else {
-		req = conn->ireqs;
-		conn->ireqs = NULL;
-		while (req != NULL) {
-			req1 = req->next;
-			sp_conn_free_incall(conn, req->tcall);
-			free(req->rcall);
-			sp_req_free(req);
-			req = req1;
-		}
+	/* clean the incoming fcall */
+	sp_conn_free_incall(conn, conn->ifcall);
+	conn->ifcall = NULL;
 
-		req = conn->oreqs;
-		conn->oreqs = NULL;
-		while (req != NULL) {
-			req1 = req->next;
-			sp_conn_free_incall(conn, req->tcall);
-			free(req->rcall);
-			sp_req_free(req);
-			req = req1;
-		}
+	/* clean the outgoing fcalls */
+	fc = conn->ofcall_first;
+	while (fc != NULL) {
+		fc1 = fc->next;
+		free(fc);
+		fc = fc1;
 	}
 
-	conn->msize = msize;
-	if (conn->ireqs || conn->oreqs)
-		return;
+	conn->ofcall_first = NULL;
+	conn->ofcall_last = NULL;
+	conn->ofcall_pos = 0;
 
 	/* free old pool of fcalls */	
 	fc = conn->freerclist;
@@ -158,47 +165,170 @@ again:
 	}
 
 	if (msize) {
+		conn->msize = msize;
 		conn->dotu = dotu;
 		conn->fidpool = sp_fidpool_create();
 	}
-	conn->flags &= ~Creset;
+}
 
-	/* if msize > 0, the reset was caused by Tversion, send the response back */
-	if (vreq) {
-		sprintf(buf, "9P2000%s", dotu?".u":"");
-		rc = sp_create_rversion(conn->msize, buf);
-		sp_respond(vreq, rc);
+static void
+sp_conn_notify(Spfd *spfd, void *aux)
+{
+	int n;
+	Spconn *conn;
+
+	conn = aux;
+	n = 0;
+	if (spfd_can_read(spfd))
+		n = sp_conn_read(conn);
+
+	if (!n && spfd_can_write(spfd))
+		sp_conn_write(conn);
+
+	if (n || spfd_has_error(spfd)) {
+		sp_werror(NULL, 0);
+		sp_conn_destroy(conn);
+	}
+}
+
+static int
+sp_conn_read(Spconn *conn)
+{
+	int n, size;
+	Spsrv *srv;
+	Spfcall *fc, *fc1;
+
+	srv = conn->srv;
+
+	/* if we are sending Enomem error back, block all reading */
+	if (srv->enomem)
+		return 0;
+
+	if (!conn->ifcall) {
+		conn->ifcall = sp_conn_new_incall(conn);
+		conn->ifcall->size = 0;
+	}
+
+	fc = conn->ifcall;
+	n = spfd_read(conn->spfdin, fc->pkt + fc->size, conn->msize - fc->size);
+	if (n == 0)
+		return -1;
+	else if (n < 0)
+		return 0;
+
+	fc->size += n;
+
+again:
+	n = fc->size;
+	if (n < 4)
+		return 0;
+
+	size = fc->pkt[0] | (fc->pkt[1]<<8) | (fc->pkt[2]<<16) | (fc->pkt[3]<<24);
+	if (n < size)
+		return 0;
+
+	if (size > conn->msize) {
+		fprintf(stderr, "error: packet too big\n");
+		close(conn->fdin);
+		if (conn->fdout != conn->fdin)
+			close(conn->fdout);
+		return 0;
+	}
+
+	if (!sp_deserialize(fc, fc->pkt, conn->dotu)) {
+		fprintf(stderr, "error while deserializing\n");
+		close(conn->fdin);
+		if (conn->fdout != conn->fdin)
+			close(conn->fdout);
+		return 0;
+	}
+
+	if (srv->debuglevel) {
+		fprintf(stderr, "<<< (%p) ", conn);
+		sp_printfcall(stderr, fc, conn->dotu);
+		fprintf(stderr, "\n");
+	}
+
+	fc1 = sp_conn_new_incall(conn);
+	if (n > size)
+		memmove(fc1->pkt, fc->pkt + size, n - size);
+
+	fc1->size = n - size;
+
+	conn->ifcall = fc1;
+	sp_srv_process_fcall(conn, fc);
+
+	fc = conn->ifcall;
+	if (fc && fc->size > 0)
+		goto again;
+
+	return 0;
+}
+
+static void
+sp_conn_write(Spconn *conn)
+{
+	int n;
+	Spfcall *rc;
+	Spsrv *srv;
+
+	srv = conn->srv;
+	rc = conn->ofcall_first;
+	if (!rc)
+		return;
+
+	if (conn->srv->debuglevel && conn->ofcall_pos==0) {
+		fprintf(stderr, ">>> (%p) ", conn);
+		sp_printfcall(stderr, rc, conn->dotu);
+		fprintf(stderr, "\n");
+	}
+
+	n = spfd_write(conn->spfdout, rc->pkt + conn->ofcall_pos, rc->size - conn->ofcall_pos);
+	if (n <= 0)
+		return;
+
+	conn->ofcall_pos += n;
+	if (conn->ofcall_pos == rc->size) {
+		conn->ofcall_first = rc->next;
+		if (conn->ofcall_last == rc)
+			conn->ofcall_last = NULL;
+
+		conn->ofcall_pos = 0;
+		if (rc==srv->rcenomem || rc==srv->rcenomemu) {
+			/* unblock reading and read some messages if we can */
+			srv->enomem = 0;
+			if (spfd_can_read(conn->spfdin))
+				sp_conn_read(conn);
+		} else
+			free(rc);
 	}
 }
 
 void
-sp_conn_respond(Spconn *conn, Spreq *req)
+sp_conn_respond(Spconn *conn, Spfcall *tc, Spfcall *rc)
 {
-	Spreq *preq;
-
-	if (!req->rcall) {
-		sp_conn_free_incall(conn, req->tcall);
-		sp_req_free(req);
+	if (!rc) {
+		sp_conn_free_incall(conn, tc);
 		return;
 	}
 
-	sp_set_tag(req->rcall, req->tcall->tag);
-	if (conn->oreqs) {
-		for(preq = conn->oreqs; preq->next != NULL; preq = preq->next)
-			;
+	sp_set_tag(rc, tc->tag);
+	sp_conn_free_incall(conn, tc);
 
-		req->next = preq->next;
-		preq->next = req;
-	} else {
-		conn->oreqs = req;
-		req->next = NULL;
-	}
+	if (conn->ofcall_last)
+		conn->ofcall_last->next = rc;
 
-	if (conn->dataout)
-		(*conn->dataout)(conn, req);
+	if (!conn->ofcall_first)
+		conn->ofcall_first = rc;
+
+	conn->ofcall_last = rc;
+	rc->next = NULL;
+
+	if (!conn->ofcall_first->next && spfd_can_write(conn->spfdout))
+		sp_conn_write(conn);
 }
 
-Spfcall *
+static Spfcall *
 sp_conn_new_incall(Spconn *conn)
 {
 	Spfcall *fc;
@@ -207,8 +337,9 @@ sp_conn_new_incall(Spconn *conn)
 		fc = conn->freerclist;
 		conn->freerclist = fc->next;
 		conn->freercnum--;
-	} else
-		fc = sp_malloc(sizeof(*fc) + conn->msize);
+	} else {
+		fc = malloc(sizeof(*fc) + conn->msize);
+	}
 
 	if (!fc)
 		return NULL;
@@ -217,7 +348,7 @@ sp_conn_new_incall(Spconn *conn)
 	return fc;
 }
 
-void
+static void
 sp_conn_free_incall(Spconn* conn, Spfcall *rc)
 {
 	Spfcall *r;

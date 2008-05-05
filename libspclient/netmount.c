@@ -28,17 +28,74 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <arpa/inet.h>
 #include "spfs.h"
 #include "spclient.h"
 #include "spcimpl.h"
 
-Spcfsys *
-spc_netmount(char *address, char *uname, int dfltport)
+/* this should be at least 3 functions. parse an address into 
+  * sockaddr. make a socket. Mount a given sockaddr. This needs
+  * rewriting. 
+  * oh, hell, let's just do it.
+  */
+
+/* parse an address in plan 9 format into a sockaddr
+  * NOT a sockaddr_in yet if ever.
+  * if you want defaults, then put them in the string!
+  */
+struct sockaddr *parse9net(const char *address, struct sockaddr *psaddr)
 {
-	int fd, port;
+	int port;
+	char *addr, *name, *p, *s;
+	struct sockaddr_in *saddr = (struct sockaddr_in *)psaddr;
+	struct hostent *hostinfo;
+
+	addr = strdup(address);
+	if (strncmp(addr, "tcp!", 4) == 0)
+		name = addr + 4;
+	else
+		name = addr;
+
+	port = 0;
+	p = strrchr(name, '!');
+	if (p) {
+		*p = '\0';
+		p++;
+		port = strtoul(p, &s, 0);
+		if (*s != '\0') {
+			sp_werror("invalid port format", EIO);
+			goto error;
+		}
+	}
+
+	hostinfo = gethostbyname(name);
+	if (!hostinfo) {
+		sp_werror("cannot resolve name: %s", EIO, name);
+		goto error;
+	}
+
+	free(addr);
+
+	saddr->sin_family = AF_INET;
+	saddr->sin_port = htons(port);
+	saddr->sin_addr = *(struct in_addr *) hostinfo->h_addr;
+
+	return (struct sockaddr *) saddr;
+
+error:
+	return NULL;
+}
+
+Spcfsys *
+spc_netmount(char *address, Spuser *user, int dfltport, 
+	int (*auth)(Spcfid *afid, Spuser *user, void *aux), void *aux)
+{
+	int n, fd, port;
 	char *addr, *name, *p, *s;
 	struct sockaddr_in saddr;
 	struct hostent *hostinfo;
+	char buf[64];
+	Spcfsys *fs;
 
 	addr = strdup(address);
 	if (strncmp(addr, "tcp!", 4) == 0)
@@ -75,12 +132,45 @@ spc_netmount(char *address, char *uname, int dfltport)
 	saddr.sin_addr = *(struct in_addr *) hostinfo->h_addr;
 
 	if (connect(fd, (struct sockaddr *) &saddr, sizeof(saddr)) < 0) {
-		sp_uerror(errno);
+		/* real computers have errstr */
+		static char error[128];
+		/* too bad for f-ing gcc and friends */
+		unsigned char octet[4];
+		octet[0] = saddr.sin_addr.s_addr >> 24;
+		octet[1] = saddr.sin_addr.s_addr >>16;
+		octet[2] = saddr.sin_addr.s_addr >>8;
+		octet[3] = saddr.sin_addr.s_addr;
+		/* yeah, they broke this too
+		char *i = inet_ntoa(saddr.sin_addr);
+ 		 */
+		
+		memset(error, 0, sizeof(error));
+		//strerror_r(errno, error, sizeof(error));
+		strcpy(error, strerror(errno));
+		error[strlen(error)] = ':';
+		sprintf(&error[strlen(error)], "%d.%d.%d.%d", octet[3], octet[2], octet[1], octet[0]);
+//		sp_werror("Host :%s:%s", errno, i, error);
+		sp_werror(error, errno);
 		goto error;
 	}
 
 	free(addr);
-	return spc_mount(fd, NULL, uname, 0);
+	fs = spc_mount(fd, NULL, user, auth, aux);
+	if (fs) {
+		snprintf(buf, sizeof(buf), "%s", inet_ntoa(saddr.sin_addr));
+		fs->raddr = strdup(buf);
+		
+		n = sizeof(saddr);
+		if (getsockname(fd, (struct sockaddr *) &saddr, (socklen_t *) &n) >= 0) {
+			snprintf(buf, sizeof(buf), "%s", inet_ntoa(saddr.sin_addr));
+			fs->laddr = strdup(buf);
+		}
+
+		if (spc_chatty)
+			fprintf(stderr, "connection %p to %s opened\n", fs, fs->raddr);
+	}
+
+	return fs;
 
 error:
 	free(addr);

@@ -92,7 +92,7 @@ sp_socksrv_connect(Socksrv *ss)
 		return -1;
 	}
 
-	if (listen(ss->sock, 1) < 0) {
+	if (listen(ss->sock, 128) < 0) {
 		sp_suerror("cannot listen on socket", errno);
 		return -1;
 	}
@@ -217,9 +217,7 @@ sp_socksrv_notify(Spfd *spfd, void *aux)
 	}
 
 	fcntl(csock, F_SETFD, FD_CLOEXEC);
-	if (!(conn = sp_fdconn_create(srv, csock, csock)))
-		close(csock);
-
 	snprintf(buf, sizeof(buf), "%s!%d", inet_ntoa(caddr.sin_addr), ntohs(caddr.sin_port));
-	conn->address = strdup(buf);
+	if (!(conn = sp_conn_create(srv, strdup(buf), csock, csock)))
+		close(csock);
 }

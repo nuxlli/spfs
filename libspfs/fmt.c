@@ -78,7 +78,7 @@ sp_printqid(FILE *f, Spqid *q)
 		buf[n++] = 'L';
 	buf[n] = '\0';
 
-	return fprintf(f, " (%.16llx %x '%s')", (long long unsigned int) q->path, q->version, buf);
+	return fprintf(f, " (%.16llx %x '%s')", q->path, q->version, buf);
 }
 
 int
@@ -94,7 +94,7 @@ sp_printstat(FILE *f, Spstat *st, int dotu)
 	n += fprintf(f, " m ");
 	n += sp_printperm(f, st->mode);
 	n += fprintf(f, " at %d mt %d l %lld t %d d %d",
-		st->atime, st->mtime, (long long unsigned int) st->length, st->type, st->dev);
+		st->atime, st->mtime, st->length, st->type, st->dev);
 	if (dotu)
 		n += fprintf(f, " ext '%.*s'", st->extension.len, 
 			st->extension.str);
@@ -242,7 +242,7 @@ sp_printfcall(FILE *f, Spfcall *fc, int dotu)
 		
 	case Tread:
 		ret += fprintf(f, "Tread tag %u fid %d offset %lld count %u", 
-			tag, fid, (long long int) fc->offset, fc->count);
+			tag, fid, fc->offset, fc->count);
 		break;
 		
 	case Rread:
@@ -252,7 +252,7 @@ sp_printfcall(FILE *f, Spfcall *fc, int dotu)
 		
 	case Twrite:
 		ret += fprintf(f, "Twrite tag %u fid %d offset %lld count %u data ",
-			tag, fid, (long long int) fc->offset, fc->count);
+			tag, fid, fc->offset, fc->count);
 		ret += sp_printdata(f, fc->data, fc->count);
 		break;
 		

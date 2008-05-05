@@ -20,14 +20,17 @@ LIBFILES=\
 	walk.o\
 	write.o\
 	writenb.o\
+	wstat.o\
 
 libspclient.a: $(LIBFILES)
 	ar rc libspclient.a $(LIBFILES)
 	ranlib libspclient.a
 
 install:
-	cp ../include/spclient.h /usr/local/include
-	cp libspclient.a /usr/local/lib
+	mkdir -p $(INSTALLPREFIX)/include
+	mkdir -p $(INSTALLPREFIX)/lib
+	cp ../include/spclient.h $(INSTALLPREFIX)/include
+	cp libspclient.a $(INSTALLPREFIX)/lib
 
 clean:
 	rm -f *.o *.a *~

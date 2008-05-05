@@ -135,8 +135,10 @@ spcfd_remove(Spcfd *spcfd)
 		return;
 	}
 
-	if (spcfd->spfd)
+	if (spcfd->spfd) {
 		spfd_remove(spcfd->spfd);
+		spcfd->spfd = NULL;
+	}
 
 	for(ps = NULL, s = spcfds; s != NULL; ps = s, s = s->next)
 		if (s == spcfd) {
@@ -332,7 +334,7 @@ spcfd_read_cb(void *cba, Spfcall *rc)
 	spcfd = cba;
 	spcfd_check_error(spcfd, rc);
 	sp_rerror(&ename, &ecode);
-	if (ename) {
+	if (ecode) {
 		spcfd->flags |= Error;
 		goto do_notify;
 	}
@@ -354,6 +356,8 @@ do_notify:
 		spcfd_remove(spcfd);
 	else
 		(*spcfd->notify)(spcfd, spcfd->aux);
+
+	sp_werror(NULL, 0);
 }
 
 static void
@@ -367,7 +371,7 @@ spcfd_write_cb(void *cba, Spfcall *rc)
 
 	spcfd_check_error(spcfd, rc);
 	sp_rerror(&ename, &ecode);
-	if (ename) {
+	if (ecode) {
 		spcfd->flags |= Error;
 		goto do_notify;
 	}
@@ -386,4 +390,6 @@ do_notify:
 		spcfd_remove(spcfd);
 	else
 		(*spcfd->notify)(spcfd, spcfd->aux);
+
+	sp_werror(NULL, 0);
 }

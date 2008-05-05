@@ -43,6 +43,7 @@ typedef struct Spauth Spauth;
 typedef struct Spsrv Spsrv;
 typedef struct Spuser Spuser;
 typedef struct Spgroup Spgroup;
+typedef struct Spuserpool Spuserpool;
 typedef struct Spfile Spfile;
 typedef struct Spfilefid Spfilefid;
 typedef struct Spfileops Spfileops;
@@ -236,33 +237,29 @@ struct Spfid {
 	u8		type;
 	u32		diroffset;
 	Spuser*		user;
-	u32		dev;	/* used by cellfs and kvmfs */
 	void*		aux;
 
 	Spfid*		next;	/* list of fids within a bucket */
 };
 
-/* connection flags */
-enum {
-       Creset,
-       Cshutdown,
-};
-
 struct Spconn {
-	Spsrv*		srv;
 	char*		address;	/* IP address!port */
 	u32		msize;
 	int		dotu;
-	int		flags;
-	Spreq*		ireqs;          /* requests that didn't enter the srv queues yet */
-	Spreq*		oreqs;          /* requests that left the srv queues */
-	void*		caux;           /* implementation specific */
+	int		shutdown;
+	int		fdin;
+	int		fdout;
+	Spfd*		spfdin;
+	Spfd*		spfdout;
+	Spsrv*		srv;
 	Spfid**		fidpool;
 	int		freercnum;
 	Spfcall*	freerclist;
-	void		(*reset)(Spconn *);
-	int		(*shutdown)(Spconn *);
-	void		(*dataout)(Spconn *, Spreq *req);
+
+	Spfcall*	ifcall;
+	int		ofcall_pos;
+	Spfcall*	ofcall_first;
+	Spfcall*	ofcall_last;
 
 	Spconn*		next;	/* list of connections within a server */
 };
@@ -272,10 +269,10 @@ struct Spreq {
 	u16		tag;
 	Spfcall*	tcall;
 	Spfcall*	rcall;
+	int		cancelled;
 	int		responded;
 	Spreq*		flushreq;
 	Spfid*		fid;
-	void*		caux;	/* connection specific data */
 
 	Spreq*		next;	/* list of all outstanding requests */
 	Spreq*		prev;	/* used for requests that are worked on */
@@ -295,7 +292,9 @@ struct Spsrv {
 	void*		srvaux;
 	void*		treeaux;
 	int		debuglevel;
+	int		reent;
 	Spauth*		auth;
+	Spuserpool*	upool;
 
 	void		(*start)(Spsrv *);
 	void		(*shutdown)(Spsrv *);
@@ -322,7 +321,11 @@ struct Spsrv {
 	Spfcall*	(*wstat)(Spfid *fid, Spstat *stat);
 
 	/* implementation specific */
+	int		nreqs;		/* number of simultaneously processed
+					   (reentrant) requests */
 	Spconn*		conns;
+	Spreq*		reqs_first;
+	Spreq*		reqs_last;
 	Spreq*		workreqs;
 	int		enomem;		/* if set, returning Enomem Rerror */
 	Spfcall*	rcenomem;	/* preallocated to send if no memory */
@@ -330,20 +333,37 @@ struct Spsrv {
 };
 
 struct Spuser {
+	int			refcount;
+	Spuserpool*	upool;
 	char*		uname;
 	uid_t		uid;
 	Spgroup*	dfltgroup;
-	int		ngroups;	
-	gid_t*		groups;
+	int		ngroups;
+	Spgroup**	groups;
+	void*		aux;
 
 	Spuser*		next;
 };
 
 struct Spgroup {
+	int		refcount;
+	Spuserpool*	upool;
 	char*		gname;
 	gid_t		gid;
+	void*		aux;
 
 	Spgroup*	next;
+};
+
+struct Spuserpool {
+	void*		aux;
+	Spuser*		(*uname2user)(Spuserpool *, char *uname);
+	Spuser*		(*uid2user)(Spuserpool *, u32 uid);
+	Spgroup*	(*gname2group)(Spuserpool *, char *gname);
+	Spgroup*	(*gid2group)(Spuserpool *, u32 gid);
+	int		(*ismember)(Spuserpool *, Spuser *u, Spgroup *g);
+	void		(*udestroy)(Spuserpool *, Spuser *u);
+	void		(*gdestroy)(Spuserpool *, Spgroup *g);
 };
 
 struct Spfile {
@@ -371,6 +391,7 @@ struct Spfile {
 };
 
 struct Spfileops {
+//	Spuserpool*	upool;
 	void		(*ref)(Spfile *, Spfilefid *);
 	void		(*unref)(Spfile *, Spfilefid *);
 	int		(*read)(Spfilefid* file, u64 offset, u32 count, 
@@ -384,6 +405,7 @@ struct Spfileops {
 };
 
 struct Spdirops {
+//	Spuserpool*	upool;
 	void		(*ref)(Spfile *, Spfilefid *);
 	void		(*unref)(Spfile *, Spfilefid *);
 	Spfile*		(*create)(Spfile *dir, char *name, u32 perm, 
@@ -423,6 +445,7 @@ extern char *Eopen;
 extern char *Eexist;
 extern char *Enotempty;
 extern char *Eunknownuser;
+extern Spuserpool *sp_unix_users;
 
 Spfd *spfd_add(int fd, void (*notify)(Spfd *, void *), void *aux);
 void spfd_remove(Spfd *spfd);
@@ -443,18 +466,10 @@ int sp_srv_add_conn(Spsrv *srv, Spconn *conn);
 void sp_srv_remove_conn(Spsrv *srv, Spconn *conn);
 void sp_respond(Spreq *req, Spfcall *rcall);
 Spfcall *sp_srv_get_enomem(Spsrv *srv, int dotu);
-Spreq *sp_req_alloc(Spconn *conn, Spfcall *tc);
-void sp_req_free(Spreq *req);
-void sp_srv_process_req(Spreq *req);
 
-Spconn *sp_conn_create(Spsrv *srv);
-void sp_conn_destroy(Spconn *conn);
-void sp_conn_shutdown(Spconn *conn);
+Spconn *sp_conn_create(Spsrv *srv, char *address, int fdin, int fdout);
 void sp_conn_reset(Spconn *srv, u32 msize, int dotu);
-void sp_conn_respond(Spconn *conn, Spreq *req);
-Spfcall *sp_conn_new_incall(Spconn *conn);
-void sp_conn_free_incall(Spconn* conn, Spfcall *rc);
-Spconn *sp_fdconn_create(Spsrv *srv, int fdin, int fdout);
+void sp_conn_respond(Spconn *conn, Spfcall *tc, Spfcall *rc);
 
 Spfid **sp_fidpool_create(void);
 void sp_fidpool_destroy(Spfid **);
@@ -504,12 +519,21 @@ Spfcall *sp_create_rwstat(void);
 Spfcall *sp_alloc_rread(u32);
 void sp_set_rread_count(Spfcall *, u32);
 
-Spuser* sp_uid2user(int uid);
-Spuser* sp_uname2user(char *uname);
-Spgroup* sp_gid2group(gid_t gid);
-Spgroup* sp_gname2group(char *gname);
-int sp_usergroups(Spuser *u, gid_t **gids);
+void sp_user_incref(Spuser *);
+void sp_user_decref(Spuser *);
+void sp_group_incref(Spgroup *);
+void sp_group_decref(Spgroup *);
 int sp_change_user(Spuser *u);
+Spuser* sp_current_user(void);
+
+Spuserpool *sp_priv_userpool_create();
+Spuser *sp_priv_user_add(Spuserpool *up, char *uname, u32 uid, void *aux);
+void sp_priv_user_del(Spuser *u);
+int sp_priv_user_setdfltgroup(Spuser *u, Spgroup *g);
+Spgroup *sp_priv_group_add(Spuserpool *up, char *gname, u32 gid);
+void sp_priv_group_del(Spgroup *g);
+int sp_priv_group_adduser(Spgroup *g, Spuser *u);
+int sp_priv_group_deluser(Spgroup *g, Spuser *u);
 
 Spsrv *sp_socksrv_create_tcp(int*);
 Spsrv *sp_pipesrv_create();
@@ -530,7 +554,7 @@ int spfile_checkperm(Spfile *file, Spuser *user, int perm);
 void spfile_init_srv(Spsrv *, Spfile *);
 
 void spfile_fiddestroy(Spfid *fid);
-Spfcall *spfile_attach(Spfid *fid, Spfid *afid, Spstr *uname, Spstr *aname);
+Spfcall *spfile_attach(Spfid *fid, Spfid *afid, Spstr *uname, Spstr *aname, u32 n_uname);
 int spfile_clone(Spfid *fid, Spfid *newfid);
 int spfile_walk(Spfid *fid, Spstr *wname, Spqid *wqid);
 Spfcall *spfile_open(Spfid *fid, u8 mode);

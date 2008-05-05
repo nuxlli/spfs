@@ -34,7 +34,7 @@ struct Reqpool {
 } reqpool = { 0, NULL };
 
 static Spfcall* sp_default_version(Spconn *, u32, Spstr *);
-static Spfcall* sp_default_attach(Spfid *, Spfid *, Spstr *, Spstr *);
+static Spfcall* sp_default_attach(Spfid *, Spfid *, Spstr *, Spstr *, u32);
 static Spfcall* sp_default_flush(Spreq *);
 static int sp_default_clone(Spfid *, Spfid *);
 static int sp_default_walk(Spfid *, Spstr*, Spqid *);
@@ -56,8 +56,10 @@ sp_srv_create()
 	if (!srv)
 		return NULL;
 
-	srv->msize = 8216;
+	srv->msize = 32768 + IOHDRSZ;
 	srv->dotu = 1;
+	srv->reent = 1;
+	srv->nreqs = 0;
 	srv->srvaux = NULL;
 	srv->treeaux = NULL;
 	srv->auth = NULL;
@@ -82,8 +84,11 @@ sp_srv_create()
 	srv->remove = sp_default_remove;
 	srv->stat = sp_default_stat;
 	srv->wstat = sp_default_wstat;
+	srv->upool = sp_unix_users;
 
 	srv->conns = NULL;
+	srv->reqs_first = NULL;
+	srv->reqs_last = NULL;
 	srv->workreqs = NULL;
 	srv->debuglevel = 0;
 
@@ -138,6 +143,30 @@ sp_srv_remove_conn(Spsrv *srv, Spconn *conn)
 
 	if (srv->connclose)
 		(*srv->connclose)(conn);
+}
+
+void
+sp_srv_add_req(Spsrv *srv, Spreq *req)
+{
+	req->prev = srv->reqs_last;
+	if (srv->reqs_last)
+		srv->reqs_last->next = req;
+	srv->reqs_last = req;
+	if (!srv->reqs_first)
+		srv->reqs_first = req;
+}
+
+void
+sp_srv_remove_req(Spsrv *srv, Spreq *req)
+{
+	if (req->prev)
+		req->prev->next = req->next;
+	if (req->next)
+		req->next->prev = req->prev;
+	if (req == srv->reqs_first)
+		srv->reqs_first = req->next;
+	if (req == srv->reqs_last)
+		srv->reqs_last = req->prev;
 }
 
 void
@@ -202,19 +231,32 @@ sp_srv_put_enomem(Spsrv *srv)
 }
 
 void
-sp_srv_process_req(Spreq *req)
+sp_srv_process_fcall(Spconn *conn, Spfcall *tc)
 {
 	int ecode;
 	char *ename;
-	Spfcall *tc, *rc;
-	Spconn *conn;
+	Spsrv *srv;
+	Spreq *req;
+	Spfcall *rc;
 	sp_fcall f;
 
-	conn = req->conn;
-	sp_srv_add_workreq(conn->srv, req);
+	srv = conn->srv;
+	req = sp_req_alloc(conn, tc);
+	if (!req) {
+		rc = sp_srv_get_enomem(srv, conn->dotu);
+		sp_conn_respond(conn, tc, rc);
+		return;
+	}
 
-	tc = req->tcall;
+	if (!srv->reent && srv->nreqs>0) {
+		sp_srv_add_req(srv, req);
+		return;
+	}
+
+again:
+	sp_srv_add_workreq(srv, req);
 	f = NULL;
+	srv->nreqs++;
 	if (tc->type<Tfirst && tc->type>Rlast)
 		sp_werror("unknown message type", ENOSYS);
 	else
@@ -226,6 +268,7 @@ sp_srv_process_req(Spreq *req)
 	else
 		sp_werror("unsupported message", ENOSYS);
 
+	srv->nreqs--;
 	sp_rerror(&ename, &ecode);
 	if (ename != NULL) {
 		if (rc)
@@ -242,6 +285,14 @@ sp_srv_process_req(Spreq *req)
 
 	if (rc)
 		sp_respond(req, rc);
+
+	if (srv->reqs_first) {
+		req = srv->reqs_first;
+		sp_srv_remove_req(srv, req);
+		tc = req->tcall;
+		conn = req->conn;
+		goto again;
+	}
 }
 
 void
@@ -264,14 +315,16 @@ sp_respond(Spreq *req, Spfcall *rc)
 		req->fid = NULL;
 	}
 
+	sp_conn_respond(req->conn, req->tcall, req->rcall);
 	freq = req->flushreq;
-	sp_conn_respond(req->conn, req);
+	sp_req_free(req);
 
 	while (freq != NULL) {
 		freq->rcall = sp_create_rflush();
 		/* TODO: handle ENOMEM while creating Rflush */
+		sp_conn_respond(freq->conn, freq->tcall, freq->rcall);
 		freq1 = freq->flushreq;
-		sp_conn_respond(freq->conn, freq);
+		sp_req_free(freq);
 		freq = freq1;
 	}
 }
@@ -289,31 +342,34 @@ static Spfcall*
 sp_default_version(Spconn *conn, u32 msize, Spstr *version) 
 {
 	int dotu;
+	char *ver;
+	Spfcall *rc;
 
 	if (msize > conn->srv->msize)
 		msize = conn->srv->msize;
 
 	dotu = 0;
-	if (sp_strcmp(version, "9P2000.u")==0 && conn->srv->dotu)
+	if (sp_strcmp(version, "9P2000.u")==0 && conn->srv->dotu) {
+		ver = "9P2000.u";
 		dotu = 1;
-	else if (sp_strncmp(version, "9P2000", 6) == 0)
-		dotu = 0;
-	else {
-		sp_werror("unsupported 9P version", EIO);
-		return NULL;
-	}
+	} else if (sp_strncmp(version, "9P2000", 6) == 0)
+		ver = "9P2000";
+	else
+		ver = NULL;
 
-	if (msize < IOHDRSZ) {
+	if (msize < IOHDRSZ)
 		sp_werror("msize too small", EIO);
-		return NULL;
-	}
+	else if (ver) {
+		sp_conn_reset(conn, msize, dotu);
+		rc = sp_create_rversion(msize, ver);
+	} else
+		sp_werror("unsupported 9P version", EIO);
 
-	sp_conn_reset(conn, msize, dotu);
-	return NULL;
+	return rc;
 }
 
 static Spfcall*
-sp_default_attach(Spfid *fid, Spfid *afid, Spstr *uname, Spstr *aname)
+sp_default_attach(Spfid *fid, Spfid *afid, Spstr *uname, Spstr *aname, u32 n_uname)
 {
 	sp_werror(Enotimpl, EIO);
 	return NULL;
@@ -408,7 +464,7 @@ Spreq *sp_req_alloc(Spconn *conn, Spfcall *tc) {
 	}
 
 	req->conn = conn;
-	req->tag = tc?tc->tag:NOTAG;
+	req->tag = tc->tag;
 	req->tcall = tc;
 	req->rcall = NULL;
 	req->responded = 0;
@@ -416,7 +472,6 @@ Spreq *sp_req_alloc(Spconn *conn, Spfcall *tc) {
 	req->next = NULL;
 	req->prev = NULL;
 	req->fid = NULL;
-	req->caux = NULL;
 
 	return req;
 }

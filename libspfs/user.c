@@ -31,309 +31,104 @@
 #include "spfs.h"
 #include "spfsimpl.h"
 
-struct Usercache {
-	int		init;
-	int		hsize;
-	Spuser**	htable;
-} usercache = { 0 };
+static Spuser *currentUser;
 
-struct Spgroupcache {
-	int		init;
-	int		hsize;
-	Spgroup**	htable;
-} groupcache = { 0 };
-
-Spuser *currentUser;
-
-static void
-initusercache(void)
+void
+sp_user_incref(Spuser *u)
 {
-	if (!usercache.init) {
-		usercache.hsize = 64;
-		usercache.htable = calloc(usercache.hsize, sizeof(Spuser *));
-		usercache.init = 1;
-	}
+	if (!u)
+		return;
+
+	u->refcount++;
 }
 
-Spuser*
-sp_uid2user(int uid)
+void
+sp_user_decref(Spuser *u)
 {
-	int n, i;
-	Spuser *u;
-	struct passwd pw, *pwp;
-	int bufsize;
-	char *buf;
+	int i;
+	if (!u)
+		return;
 
-	if (!usercache.init)
-		initusercache();
+	u->refcount--;
+	if (u->refcount > 0)
+		return;
 
-	n = uid % usercache.hsize;
-	for(u = usercache.htable[n]; u != NULL; u = u->next)
-		if (u->uid == uid)
-			break;
+	if (u->upool->udestroy)
+		(*u->upool->udestroy)(u->upool, u);
 
-	if (u)
-		return u;
+	for(i = 0; i < u->ngroups; i++)
+		sp_group_decref(u->groups[i]);
 
-	bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
-	if (bufsize < 256)
-		bufsize = 256;
-
-	buf = sp_malloc(bufsize);
-	if (!buf)
-		return NULL;
-
-	i = getpwuid_r(uid, &pw, buf, bufsize, &pwp);
-	if (i) {
-		sp_uerror(i);
-		free(buf);
-		return NULL;
-	}
-
-	u = sp_malloc(sizeof(*u) + strlen(pw.pw_name) + 1);
-	if (!u) {
-		free(buf);
-		return NULL;
-	}
-
-	u->uid = uid;
-	u->uname = (char *)u + sizeof(*u);
-	strcpy(u->uname, pw.pw_name);
-	u->dfltgroup = sp_gid2group(pw.pw_gid);
-
-	u->ngroups = 0;
-	u->groups = NULL;
-
-	u->next = usercache.htable[n];
-	usercache.htable[n] = u;
-
-	free(buf);
-	return u;
+	sp_group_decref(u->dfltgroup);
+	free(u->groups);
+	free(u);
 }
 
-Spuser*
-sp_uname2user(char *uname)
+void
+sp_group_incref(Spgroup *g)
 {
-	int i, n;
-	struct passwd pw, *pwp;
-	int bufsize;
-	char *buf;
-	Spuser *u;
+	if (!g)
+		return;
 
-	if (!usercache.init)
-		initusercache();
-
-	for(i = 0; i<usercache.hsize; i++)
-		for(u = usercache.htable[i]; u != NULL; u = u->next)
-			if (strcmp(uname, u->uname) == 0)
-				return u;
-
-	bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
-	if (bufsize < 256)
-		bufsize = 256;
-
-	buf = sp_malloc(bufsize);
-	if (!buf)
-		return NULL;
-
-	i = getpwnam_r(uname, &pw, buf, bufsize, &pwp);
-	if (i) {
-		sp_uerror(i);
-		free(buf);
-		return NULL;
-	}
-
-	if (!pw.pw_name) {
-		free(buf);
-		return NULL;
-	}
-
-	u = sp_malloc(sizeof(*u) + strlen(pw.pw_name) + 1);
-	if (!u) {
-		free(buf);
-		return NULL;
-	}
-
-	u->uid = pw.pw_uid;
-	u->uname = (char *)u + sizeof(*u);
-	strcpy(u->uname, pw.pw_name);
-	u->dfltgroup = sp_gid2group(pw.pw_gid);
-
-	u->ngroups = 0;
-	u->groups = NULL;
-
-	n = u->uid % usercache.hsize;
-	u->next = usercache.htable[n];
-	usercache.htable[n] = u;
-
-	free(buf);
-	return u;
+	g->refcount++;
 }
 
-int
-sp_usergroups(Spuser *u, gid_t **gids)
+void
+sp_group_decref(Spgroup *g)
 {
-	int n;
-	gid_t *grps;
+	if (!g)
+		return;
 
-	if (!u->groups) {
-		n = 0;
-		getgrouplist(u->uname, u->dfltgroup->gid, NULL, &n);
-		grps = sp_malloc(sizeof(*grps) * n);
-		if (!grps)
-			return -1;
+	g->refcount--;
+	if (g->refcount > 0)
+		return;
 
-		getgrouplist(u->uname, u->dfltgroup->gid, grps, &n);
-		u->groups = grps;
-		u->ngroups = n;
-	}
+	if (g->upool->gdestroy)
+		(*g->upool->gdestroy)(g->upool, g);
 
-	*gids = u->groups;
-	return u->ngroups;
-}
-
-static void
-initgroupcache(void)
-{
-	if (!groupcache.init) {
-		groupcache.hsize = 64;
-		groupcache.htable = calloc(groupcache.hsize, sizeof(Spuser *));
-		if (!groupcache.htable) {
-			sp_werror(Enomem, ENOMEM);
-			return;
-		}
-		groupcache.init = 1;
-	}
-}
-
-Spgroup*
-sp_gid2group(gid_t gid)
-{
-	int n, err;
-	Spgroup *g;
-	struct group grp, *pgrp;
-	int bufsize;
-	char *buf;
-
-	if (!groupcache.init)
-		initgroupcache();
-
-	n = gid % groupcache.hsize;
-	for(g = groupcache.htable[n]; g != NULL; g = g->next)
-		if (g->gid == gid)
-			break;
-
-	if (g)
-		return g;
-
-	bufsize = sysconf(_SC_GETGR_R_SIZE_MAX);
-	if (bufsize < 256)
-		bufsize = 256;
-
-	buf = sp_malloc(bufsize);
-	if (!buf)
-		return NULL;
-
-	err = getgrgid_r(gid, &grp, buf, bufsize, &pgrp);
-	if (err) {
-		sp_uerror(err);
-		free(buf);
-		return NULL;
-	}
-
-	g = sp_malloc(sizeof(*g) + strlen(grp.gr_name) + 1);
-	if (!g) {
-		free(buf);
-		return NULL;
-	}
-
-	g->gid = grp.gr_gid;
-	g->gname = (char *)g + sizeof(*g);
-	strcpy(g->gname, grp.gr_name);
-
-	g->next = groupcache.htable[n];
-	groupcache.htable[n] = g;
-
-	free(buf);
-	return g;
-}
-
-Spgroup*
-sp_gname2group(char *gname)
-{
-	int i, n, bufsize;
-	Spgroup *g;
-	struct group grp, *pgrp;
-	char *buf;
-
-	if (!groupcache.init)
-		initgroupcache();
-
-	for(i = 0; i < groupcache.hsize; i++) 
-		for(g = groupcache.htable[i]; g != NULL; g = g->next)
-			if (strcmp(g->gname, gname) == 0)
-				return g;
-
-	bufsize = sysconf(_SC_GETGR_R_SIZE_MAX);
-	if (bufsize < 256)
-		bufsize = 256;
-
-	buf = sp_malloc(bufsize);
-	if (!buf)
-		return NULL;
-
-	i = getgrnam_r(gname, &grp, buf, bufsize, &pgrp);
-	if (i) {
-		sp_uerror(i);
-		free(buf);
-		return NULL;
-	}
-
-	g = malloc(sizeof(*g) + strlen(grp.gr_name) + 1);
-	if (!g) {
-		free(buf);
-		return NULL;
-	}
-
-	g->gid = grp.gr_gid;
-	g->gname = (char *)g + sizeof(*g);
-	strcpy(g->gname, grp.gr_name);
-
-	n = g->gid % groupcache.hsize;
-	g->next = groupcache.htable[n];
-	groupcache.htable[n] = g;
-
-	free(buf);
-	return g;
+	free(g);
 }
 
 int
 sp_change_user(Spuser *u)
 {
-	int n;
+	int i;
 	gid_t *gids;
 
-	if (currentUser == u)
+	if (geteuid() == u->uid && u->dfltgroup && getegid() == u->dfltgroup->gid)
 		return 0;
 
 	if (setreuid(0, 0) < 0) 
 		goto error;
 
-	n = sp_usergroups(u, &gids);
-	if (n < 0)
+	gids = sp_malloc(u->ngroups * sizeof(gid_t));
+	if (!gids)
 		return -1;
 
-	setgroups(n, gids);
-	if (setregid(-1, u->dfltgroup->gid) < 0)
+	for(i = 0; i < u->ngroups; i++)
+		gids[i] = u->groups[i]->gid;
+
+	if (u->ngroups > 0)
+		setgroups(u->ngroups, gids);
+
+	if (u->dfltgroup && setregid(-1, u->dfltgroup->gid)<0)
 		goto error;
 
 	if (setreuid(-1, u->uid) < 0)
 		goto error;
 
+	sp_user_incref(u);
+	sp_user_decref(currentUser);
 	currentUser = u;
 	return 0;
 
 error:
 	sp_uerror(errno);
 	return -1;
+}
+
+Spuser *
+sp_current_user(void)
+{
+	return currentUser;
 }

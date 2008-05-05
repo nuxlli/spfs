@@ -62,6 +62,7 @@ sp_auth(Spreq *req, Spfcall *tc)
 	int n;
 	char *uname, *aname;
 	Spconn *conn;
+	Spsrv *srv;
 	Spfid *afid;
 	Spfcall *rc;
 	Spuser *user;
@@ -70,6 +71,7 @@ sp_auth(Spreq *req, Spfcall *tc)
 	rc = NULL;
 	aname = NULL;
 	conn = req->conn;
+	srv = conn->srv;
 	afid = sp_fid_find(conn, tc->afid);
 	if (afid) {
 		sp_werror(Einuse, EIO);
@@ -87,15 +89,19 @@ sp_auth(Spreq *req, Spfcall *tc)
 		if (!uname) 
 			goto done;
 
-		user = sp_uname2user(uname);
+		user = (*srv->upool->uname2user)(srv->upool, uname);
 		free(uname);
-		if (!user)
+		if (!user) {
+			sp_werror(Eunknownuser, EIO);
 			goto done;
+		}
 		tc->n_uname = user->uid;
 	} else {
-		user = sp_uid2user(tc->n_uname);
-		if (!user)
+		user = (*srv->upool->uid2user)(srv->upool, tc->n_uname);
+		if (!user) {
+			sp_werror(Eunknownuser, EIO);
 			goto done;
+		}
 	}
 
 	if (tc->aname.len) {
@@ -107,8 +113,8 @@ sp_auth(Spreq *req, Spfcall *tc)
 
 	afid->user = user;
 	afid->type = Qtauth;
-	if (conn->srv->auth && conn->srv->auth->startauth)
-		n = (*conn->srv->auth->startauth)(afid, aname, &aqid);
+	if (srv->auth && srv->auth->startauth)
+		n = (*srv->auth->startauth)(afid, aname, &aqid);
 	else
 		n = 0;
 
@@ -119,7 +125,8 @@ sp_auth(Spreq *req, Spfcall *tc)
 		sp_werror(Enoauth, EIO);
 done:
 	free(aname);
-	sp_fid_decref(afid);
+	if (!rc)
+		sp_fid_decref(afid);
 	return rc;
 }
 
@@ -128,6 +135,7 @@ sp_attach(Spreq *req, Spfcall *tc)
 {
 	char *uname, *aname;
 	Spconn *conn;
+	Spsrv *srv;
 	Spfid *fid, *afid;
 	Spfcall *rc;
 	Spuser *user;
@@ -135,6 +143,7 @@ sp_attach(Spreq *req, Spfcall *tc)
 	rc = NULL;
 	aname = NULL;
 	conn = req->conn;
+	srv = conn->srv;
 	afid = NULL;
 	fid = sp_fid_find(conn, tc->fid);
 	if (fid) {
@@ -152,12 +161,12 @@ sp_attach(Spreq *req, Spfcall *tc)
 	afid = sp_fid_find(conn, tc->afid);
 	if (!afid) {
 		if (tc->afid!=NOFID) {
-			sp_werror(Eunknownfid, EINVAL);
+			sp_werror(Eunknownfid, EIO);
 			goto done;
 		}
 
 		if (!afid->type&Qtauth) {
-			sp_werror(Ebadusefid, EINVAL);
+			sp_werror(Ebadusefid, EIO);
 			goto done;
 		}
 	} else 
@@ -168,15 +177,20 @@ sp_attach(Spreq *req, Spfcall *tc)
 		if (!uname) 
 			goto done;
 
-		user = sp_uname2user(uname);
+		user = srv->upool->uname2user(srv->upool, uname);
 		free(uname);
-		if (!user)
+		if (!user) {
+			sp_werror(Eunknownuser, EIO);
 			goto done;
+		}
+
 		tc->n_uname = user->uid;
 	} else {
-		user = sp_uid2user(tc->n_uname);
-		if (!user)
+		user = srv->upool->uid2user(srv->upool, tc->n_uname);
+		if (!user) {
+			sp_werror(Eunknownuser, EIO);
 			goto done;
+		}
 	}
 
 	fid->user = user;
@@ -282,6 +296,7 @@ sp_walk(Spreq *req, Spfcall *tc)
 		if (!(*conn->srv->clone)(fid, newfid))
 			goto done;
 
+		sp_user_incref(fid->user);
 		newfid->user = fid->user;
 		newfid->type = fid->type;
 	} else
@@ -335,7 +350,7 @@ sp_open(Spreq *req, Spfcall *tc)
 	}
 
 	if (fid->type&Qtdir && tc->mode != Oread) {
-		sp_werror(Eperm, EPERM);
+		sp_werror(Eperm, EISDIR);
 		goto done;
 	}
 
@@ -380,7 +395,7 @@ sp_create(Spreq *req, Spfcall *tc)
 
 	if (tc->perm&(Dmnamedpipe|Dmsymlink|Dmlink|Dmdevice|Dmsocket)
 	&& !fid->conn->dotu) {
-		sp_werror(Eperm, EPERM);
+		sp_werror(Eperm, ENOTSUP);
 		goto done;
 	}
 
