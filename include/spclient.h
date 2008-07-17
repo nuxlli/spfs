@@ -54,6 +54,10 @@ int spc_write(Spcfid *fid, u8 *buf, u32 count, u64 offset);
 int spc_dirread(Spcfid *fid, Spwstat **stat);
 Spwstat *spc_stat(Spcfsys *fs, char *path);
 int spc_wstat(Spcfsys *fs, char *path, Spwstat *wst);
+int spc_readnb(Spcfid *fid, u8 *buf, u32 count, u64 offset,
+	void (*cb)(void *, int), void *cba);
+int spc_writenb(Spcfid *fid, u8 *buf, u32 count, u64 offset,
+	void (*cb)(void *, int), void *cba);
 Spcfd *spcfd_add(Spcfid *fid, void (*notify)(Spcfd *, void *), void *aux);
 Spcfd *spcfd_add_fd(int fd, void (*notify)(Spcfd *, void *), void *aux);
 void spcfd_remove(Spcfd *spcfd);

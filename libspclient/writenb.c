@@ -49,7 +49,6 @@ spc_send_write_request(Spcwrite *r)
 	int n;
 	Spcfid *fid;
 	Spcfsys *fs;
-	Spfcall *fc;
 
 	fid = r->fid;
 	fs = fid->fsys;
@@ -58,12 +57,12 @@ spc_send_write_request(Spcwrite *r)
 	if (n == 0)
 		n = fs->msize - IOHDRSZ;
 
-	if (n > (r->count - r->offset))
-		n = r->count - r->offset;
+	if (n > r->count)
+		n = r->count;
 
 	r->tc = sp_create_twrite(fid->fid, r->offset, n, r->buf + r->offset);
 	if (spc_rpcnb(fs, r->tc, spc_write_cb, r) < 0) {
-		free(fc);
+		free(r->tc);
 		return -1;
 	}
 
@@ -73,28 +72,22 @@ spc_send_write_request(Spcwrite *r)
 static void
 spc_write_cb(void *cba, Spfcall *rc)
 {
-	int ecode;
-	char *ename;
+	int n;
 	Spcwrite *r;
 
 	r = cba;
 	free(r->tc);
-	sp_rerror(&ename, &ecode);
-	if (ename) {
+	if (sp_haserror()) {
 		(*r->cb)(r->cba, -1);
 		return;
 	}
 
-	r->offset += rc->count;
-	if (!rc->count || r->offset==r->count) {
-		(*r->cb)(r->cba, r->offset);
-		free(rc);
-		return;
-	}
+	n = rc->count;
+	if (n > r->count)
+		n = r->count;
 
+	(*r->cb)(r->cba, n);
 	free(rc);
-	if (spc_send_write_request(r) < 0) 
-		(*r->cb)(r->cba, -1);
 }
 
 int 
@@ -115,6 +108,10 @@ spc_writenb(Spcfid *fid, u8 *buf, u32 count, u64 offset,
 	r->cba = cba;
 	r->tc = NULL;
 
-	spc_send_write_request(r);
+	if (spc_send_write_request(r) < 0) {
+		free(r);
+		return -1;
+	}
+
 	return 0;
 }

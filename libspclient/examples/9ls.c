@@ -50,19 +50,13 @@ main(int argc, char **argv)
 	int i, n;
 	int c;
 	char *addr;
-	char *uname, *path;
+	char *path;
 	Spuser *user;
 	Spcfsys *fs;
 	Spcfid *fid;
 	Spwstat *stat;
 
-	user = sp_uid2user(geteuid());
-	if (!user) {
-		fprintf(stderr, "cannot retrieve user %d\n", geteuid());
-		exit(1);
-	}
-
-	uname = user->uname;
+	user = sp_unix_users->uid2user(sp_unix_users, geteuid());
 	while ((c = getopt(argc, argv, "dp:")) != -1) {
 		switch (c) {
 		case 'd':
@@ -70,7 +64,7 @@ main(int argc, char **argv)
 			break;
 
 		case 'u':
-			uname = optarg;
+			user = sp_unix_users->uname2user(sp_unix_users, optarg);
 			break;
 
 		default:
@@ -78,7 +72,10 @@ main(int argc, char **argv)
 		}
 	}
 
-	
+	if (!user) {
+		fprintf(stderr, "cannot retrieve user\n");
+		exit(1);
+	}
 
 	if (argc - optind < 2)
 		usage();
@@ -86,7 +83,7 @@ main(int argc, char **argv)
 	addr = argv[optind];
 	path = argv[optind+1];
 
-	fs = spc_netmount(addr, uname, 564);
+	fs = spc_netmount(addr, user, 564, NULL, NULL);
 
 	fid = spc_open(fs, path, Oread);
 	if (!fid) {

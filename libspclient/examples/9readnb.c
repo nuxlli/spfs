@@ -32,26 +32,70 @@
 #include "spfs.h"
 #include "spclient.h"
 
+#define BSIZE 8192
+
 extern int spc_chatty;
+
+static int done;
+static Spcfid *fid;
+static u64 offset;
+static u8 buf1[BSIZE];
+static u8 buf2[BSIZE];
+static u8 buf3[BSIZE];
+static u8 buf4[BSIZE];
+static int cnt;
+
+static int readnb(void *buf);
 
 static void
 usage()
 {
-	fprintf(stderr, "9write -d addr path\n");
+	fprintf(stderr, "9readnb -d addr path\n");
 	exit(1);
+}
+
+static void
+cb(void *a, int count)
+{
+	u8 *buf;
+
+	buf = a;
+	fprintf(stderr, "cb %d\n", count);
+	if (count < 0) {
+		fprintf(stderr, "error\n");
+		done++;
+	} else if (count > 0) {
+		write(1, buf, count);
+		cnt += count;
+		fprintf(stderr, "%d\n", cnt);
+		readnb(buf);
+	} else
+		done++;
+}
+
+static int
+readnb(void *buf)
+{
+	u64 off;
+
+	off = offset;
+	offset += BSIZE;
+
+	if (spc_readnb(fid, buf, BSIZE, off, cb, buf) < 0)
+		return -1;
+
+	return 0;
 }
 
 int
 main(int argc, char **argv)
 {
-	int i, n, off;
+	int ecode;
 	int c;
 	char *addr;
-	char *path;
+	char *ename, *path;
 	Spuser *user;
 	Spcfsys *fs;
-	Spcfid *fid;
-	char buf[512];
 
 	user = sp_unix_users->uid2user(sp_unix_users, geteuid());
 	while ((c = getopt(argc, argv, "dp:")) != -1) {
@@ -81,29 +125,36 @@ main(int argc, char **argv)
 	path = argv[optind+1];
 
 	fs = spc_netmount(addr, user, 564, NULL, NULL);
-	fid = spc_open(fs, path, Owrite);
+	fid = spc_open(fs, path, Oread);
 	if (!fid) {
-		fid = spc_create(fs, path, 0666, Owrite);
-		if (!fid) {
-			fprintf(stderr, "error creating\n");
-			exit(1);
-		}
+		fprintf(stderr, "cannot open\n");
+		exit(1);
 	}
 
-	off = 0;
-	while ((n = read(0, buf, sizeof(buf))) > 0) {
-		i = spc_write(fid, (u8*) buf, n, off);
-		if (i != n) {
-			fprintf(stderr, "error writing\n");
-			exit(1);
-		}
+	if (readnb(buf1) < 0)
+		goto error;
 
-		off += n;
-	}
-			
+	if (readnb(buf2) < 0)
+		goto error;
+
+	if (readnb(buf3) < 0)
+		goto error;
+
+	if (readnb(buf4) < 0)
+		goto error;
+
+	while (done < 4)
+		sp_poll_once();
+
 	spc_close(fid);
 	spc_umount(fs);
 
-	exit(0);
+	return 0;
+
+error:
+	sp_rerror(&ename, &ecode);
+	fprintf(stderr, "Error: %s\n", ename);
+	return -1;
+
 }
 

@@ -49,7 +49,6 @@ spc_send_read_request(Spcread *r)
 	int n;
 	Spcfid *fid;
 	Spcfsys *fs;
-	Spfcall *fc;
 
 	fid = r->fid;
 	fs = fid->fsys;
@@ -58,12 +57,12 @@ spc_send_read_request(Spcread *r)
 	if (n == 0)
 		n = fs->msize - IOHDRSZ;
 
-	if (n > (r->count - r->offset))
-		n = r->count - r->offset;
+	if (n > r->count)
+		n = r->count;
 
 	r->tc = sp_create_tread(fid->fid, r->offset, n);
 	if (spc_rpcnb(fs, r->tc, spc_read_cb, r) < 0) {
-		free(fc);
+		free(r->tc);
 		return -1;
 	}
 
@@ -73,29 +72,24 @@ spc_send_read_request(Spcread *r)
 static void
 spc_read_cb(void *cba, Spfcall *rc)
 {
-	int ecode;
-	char *ename;
+	int n;
 	Spcread *r;
 
 	r = cba;
 	free(r->tc);
-	sp_rerror(&ename, &ecode);
-	if (ename) {
-		(*r->cb)(r->cba, -1);
-		return;
-	}
-
-	memmove(r->buf + r->offset, rc->data, rc->count);
-	r->offset += rc->count;
-	if (!rc->count || r->offset==r->count) {
-		(*r->cb)(r->cba, r->offset);
+	if (sp_haserror()) {
 		free(rc);
+		(*r->cb)(r->cba, -1);
 		return;
 	}
 
+	n = rc->count;
+	if (n > r->count)
+		n = r->count;
+
+	memmove(r->buf, rc->data, n);
+	(*r->cb)(r->cba, n);
 	free(rc);
-	if (spc_send_read_request(r) < 0) 
-		(*r->cb)(r->cba, -1);
 }
 
 int 
@@ -109,13 +103,17 @@ spc_readnb(Spcfid *fid, u8 *buf, u32 count, u64 offset,
 		return -1;
 
 	r->fid = fid;
-	r->offset = 0;
+	r->offset = offset;
 	r->count = count;
 	r->buf = buf;
 	r->cb = cb;
 	r->cba = cba;
 	r->tc = NULL;
 
-	spc_send_read_request(r);
+	if (spc_send_read_request(r) < 0) {
+		free(r);
+		return -1;
+	}
+
 	return 0;
 }
