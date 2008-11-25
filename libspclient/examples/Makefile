@@ -8,6 +8,7 @@ CMD=\
 	9write\
 	9read\
 	9read2\
+	9readnb\
 
 all: $(CMD)
 
@@ -22,6 +23,9 @@ all: $(CMD)
 
 9read2: 9read2.o ../../libspfs/libspfs.a ../libspclient.a
 	$(CC) -o 9read2 $(CFLAGS) 9read2.o $(LFLAGS)
+
+9readnb: 9readnb.o ../../libspfs/libspfs.a ../libspclient.a
+	$(CC) -o 9readnb $(CFLAGS) 9readnb.o $(LFLAGS)
 
 clean:
 	rm -f *.o *.a *~ $(CMD)
