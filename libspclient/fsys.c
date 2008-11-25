@@ -656,3 +656,25 @@ spc_fcall_alloc(u32 msize)
 
 	return fc;
 }
+
+int
+spc_getladdr(Spcfsys *fs, char *buf, int buflen)
+{
+	if (fs->laddr) {
+		strncpy(buf, fs->laddr, buflen);
+		return 0;
+	}
+
+	return -1;
+}
+
+int
+spc_getraddr(Spcfsys *fs, char *buf, int buflen)
+{
+	if (fs->raddr) {
+		strncpy(buf, fs->raddr, buflen);
+		return 0;
+	}
+
+	return -1;
+}
