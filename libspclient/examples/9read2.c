@@ -112,7 +112,7 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
-	ispcfd = spcfd_add(fid, in_notify, fid);
+	ispcfd = spcfd_add(fid, in_notify, fid, 0);
 	spcfd_start_loop();
 	spc_close(fid);
 	spc_umount(fs);

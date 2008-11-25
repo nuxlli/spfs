@@ -35,24 +35,6 @@ enum {
 	Reof,
 };
 
-struct Spcfd {
-	Spfd*		spfd;
-	Spcfid*		fid;
-	int		flags;
-	int		iounit;
-	void		(*notify)(Spcfd *, void *);
-	void*		aux;
-	u64		offset;
-	u8*		rbuf;
-	int		rpos;
-	u8*		wbuf;
-	int		wpos;
-	Spfcall*	rtc;
-	Spfcall*	wtc;
-
-	Spcfd*		next;
-};
-
 static int spcfd_shutdown;
 static Spcfd *spcfds;
 
@@ -62,7 +44,7 @@ static void spcfd_write_cb(void *cba, Spfcall *rc);
 static void spcfd_send_read_request(Spcfd *spcfd);
 
 Spcfd *
-spcfd_add(Spcfid *fid, void (notify)(Spcfd *, void *), void *aux)
+spcfd_add(Spcfid *fid, void (notify)(Spcfd *, void *), void *aux, u64 offset)
 {
 	int iounit;
 	Spcfd *ret;
@@ -81,7 +63,7 @@ spcfd_add(Spcfid *fid, void (notify)(Spcfd *, void *), void *aux)
 	ret->iounit = iounit;
 	ret->notify = notify;
 	ret->aux = aux;
-	ret->offset = 0;
+	ret->offset = offset;
 	ret->rbuf = ((u8 *) ret) + sizeof(*ret);
 	ret->rpos = 0;
 	ret->wbuf = ret->rbuf + iounit;

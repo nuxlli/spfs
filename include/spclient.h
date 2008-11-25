@@ -28,6 +28,24 @@ typedef struct Spcfd Spcfd;
 struct Spcfsys;
 struct Spcfd;
 
+struct Spcfd {
+	Spfd*		spfd;
+	Spcfid*		fid;
+	int		flags;
+	int		iounit;
+	void		(*notify)(Spcfd *, void *);
+	void*		aux;
+	u64		offset;
+	u8*		rbuf;
+	int		rpos;
+	u8*		wbuf;
+	int		wpos;
+	Spfcall*	rtc;
+	Spfcall*	wtc;
+
+	Spcfd*		next;
+};
+
 struct Spcfid {
 	u32		iounit;
 	u8		mode;
@@ -58,7 +76,8 @@ int spc_readnb(Spcfid *fid, u8 *buf, u32 count, u64 offset,
 	void (*cb)(void *, int), void *cba);
 int spc_writenb(Spcfid *fid, u8 *buf, u32 count, u64 offset,
 	void (*cb)(void *, int), void *cba);
-Spcfd *spcfd_add(Spcfid *fid, void (*notify)(Spcfd *, void *), void *aux);
+Spcfd *spcfd_add(Spcfid *fid, void (*notify)(Spcfd *, void *), void *aux,
+	u64 offset);
 Spcfd *spcfd_add_fd(int fd, void (*notify)(Spcfd *, void *), void *aux);
 void spcfd_remove(Spcfd *spcfd);
 int spcfd_can_write(Spcfd *spcfd);
