@@ -82,8 +82,6 @@ sp_conn_create(Spsrv *srv, char *address, int fdin, int fdout)
 static void
 sp_conn_destroy(Spconn *conn)
 {
-	sp_srv_remove_conn(conn->srv, conn);
-	sp_conn_reset(conn, 0, 0);
 	close(conn->fdin);
 	if (conn->fdout != conn->fdin)
 		close(conn->fdin);
@@ -91,6 +89,9 @@ sp_conn_destroy(Spconn *conn)
 	spfd_remove(conn->spfdin);
 	if (conn->spfdout != conn->spfdin)
 		spfd_remove(conn->spfdout);
+
+	sp_srv_remove_conn(conn->srv, conn);
+	sp_conn_reset(conn, 0, 0);
 	free(conn->address);
 	free(conn);
 }
