@@ -40,6 +40,7 @@ struct Upool {
 
 static char *Euserexists = "user exists";
 static char *Egroupexists = "group exists";
+static char *Egroupbusy = "group not empty";
 
 static Spuser *sp_priv_uname2user(Spuserpool *up, char *uname);
 static Spuser *sp_priv_uid2user(Spuserpool *up, u32 uid);
@@ -184,6 +185,7 @@ void
 sp_priv_group_del(Spgroup *g)
 {
 	Spgroup *tg, *pg;
+	Spuser *tu;
 	Upool *upp;
 
 	upp = g->upool->aux;
@@ -194,6 +196,18 @@ sp_priv_group_del(Spgroup *g)
 	for(pg = NULL, tg = upp->groups; tg != NULL; pg = tg, tg = tg->next)
 		if (tg == g)
 			break;
+
+	for(tu = upp->users; tu != NULL; tu = tu->next) {
+		if(!strcmp("xcpu-admin", tu->uname))
+			continue;
+		
+		for(i = 0; i < tu->ngroups; i++) {
+			if (tu->groups[i] == g) {
+				sp_werror("%s:%s", EIO, g->gname, Egroupbusy);
+				return;
+			}
+		}
+	}
 
 	if (!pg)
 		upp->groups = g->next;
