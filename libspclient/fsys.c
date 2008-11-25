@@ -597,6 +597,9 @@ spc_rpc(Spcfsys *fs, Spfcall *tc, Spfcall **rc)
 	char *ename;
 	Spcrpc r;
 
+	if (fs->fd < 0)
+		return -1;
+
 	if (rc)
 		*rc = NULL;
 

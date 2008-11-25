@@ -39,6 +39,9 @@ spc_walk(Spcfsys *fs, char *path)
 	Spfcall *tc, *rc;
 	Spcfid *fid;
 
+	if (!fs->root)
+		return NULL;
+
 	while (*path == '/')
 		path++;
 
