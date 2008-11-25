@@ -134,6 +134,19 @@ void sp_priv_user_del(Spuser *u)
 	sp_user_decref(u);
 }
 
+Spuser *
+sp_priv_user_list(Spuserpool *up)
+{
+	Upool *upp;
+
+	upp = up->aux;
+	
+	if (!upp->users)
+		return NULL;	
+	
+	return upp->users;
+}
+
 int
 sp_priv_user_setdfltgroup(Spuser *u, Spgroup *g)
 {
@@ -215,6 +228,19 @@ sp_priv_group_del(Spgroup *g)
 		pg->next = g->next;
 
 	sp_group_decref(g);
+}
+
+Spgroup *
+sp_priv_group_list(Spuserpool *up)
+{
+	Upool *upp;
+
+	upp = up->aux;
+	
+	if (!upp->groups)
+		return NULL;	
+	
+	return upp->groups;
 }
 
 int

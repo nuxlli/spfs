@@ -529,9 +529,11 @@ Spuser* sp_current_user(void);
 Spuserpool *sp_priv_userpool_create();
 Spuser *sp_priv_user_add(Spuserpool *up, char *uname, u32 uid, void *aux);
 void sp_priv_user_del(Spuser *u);
+Spuser *sp_priv_user_list(Spuserpool *up);
 int sp_priv_user_setdfltgroup(Spuser *u, Spgroup *g);
 Spgroup *sp_priv_group_add(Spuserpool *up, char *gname, u32 gid);
 void sp_priv_group_del(Spgroup *g);
+Spgroup *sp_priv_group_list(Spuserpool *up);
 int sp_priv_group_adduser(Spgroup *g, Spuser *u);
 int sp_priv_group_deluser(Spgroup *g, Spuser *u);
 
