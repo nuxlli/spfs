@@ -88,5 +88,6 @@ void spcfd_start_loop(void);
 void spcfd_stop_loop(void);
 int spcfd_read(Spcfd *spcfd, void *buf, int buflen);
 int spcfd_write(Spcfd *spcfd, void *buf, int buflen);
-char *spc_get_local_address(Spcfsys *fs);
-char *spc_get_remote_address(Spcfsys *fs);
+
+int spc_getladdr(Spcfsys *fs, char *buf, int buflen);
+int spc_getraddr(Spcfsys *fs, char *buf, int buflen);

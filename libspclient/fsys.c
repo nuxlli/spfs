@@ -199,18 +199,6 @@ spc_destroy_fsys(Spcfsys *fs)
 		free(fs);
 }
 
-char *
-spc_get_local_address(Spcfsys *fs)
-{
-	return fs->laddr;
-}
-
-char *
-spc_get_remote_address(Spcfsys *fs)
-{
-	return fs->raddr;
-}
-
 void
 spc_request_flushed(Spcreq *r)
 {
