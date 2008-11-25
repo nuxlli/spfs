@@ -197,6 +197,7 @@ sp_priv_group_add(Spuserpool *up, char *gname, u32 gid)
 void
 sp_priv_group_del(Spgroup *g)
 {
+	int i;
 	Spgroup *tg, *pg;
 	Spuser *tu;
 	Upool *upp;

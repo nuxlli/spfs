@@ -20,7 +20,6 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
-#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -92,10 +91,10 @@ sp_uerror(int ecode)
 void
 sp_suerror(char *s, int ecode)
 {
-	char err[256], *str;
+	char err[256];
 	char buf[512];
 
-	str = strerror_r(ecode, err, sizeof(err));
-	snprintf(buf, sizeof(buf), "%s: %s", s, str);
+	strerror_r(ecode, err, sizeof(err));
+	snprintf(buf, sizeof(buf), "%s: %s", s, err);
 	sp_werror(buf, ecode);
 }
