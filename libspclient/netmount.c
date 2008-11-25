@@ -28,7 +28,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <arpa/inet.h>
 #include "spfs.h"
 #include "spclient.h"
 #include "spcimpl.h"
@@ -90,10 +89,12 @@ Spcfsys *
 spc_netmount(char *address, Spuser *user, int dfltport, 
 	int (*auth)(Spcfid *afid, Spuser *user, void *aux), void *aux)
 {
-	int n, fd, port;
+	int fd, port;
+	socklen_t n;
 	char *addr, *name, *p, *s;
 	struct sockaddr_in saddr;
 	struct hostent *hostinfo;
+	unsigned char a[4];
 	char buf[64];
 	Spcfsys *fs;
 
@@ -135,11 +136,10 @@ spc_netmount(char *address, Spuser *user, int dfltport,
 		/* real computers have errstr */
 		static char error[128];
 		/* too bad for f-ing gcc and friends */
-		unsigned char octet[4];
-		octet[0] = saddr.sin_addr.s_addr >> 24;
-		octet[1] = saddr.sin_addr.s_addr >>16;
-		octet[2] = saddr.sin_addr.s_addr >>8;
-		octet[3] = saddr.sin_addr.s_addr;
+		a[0] = saddr.sin_addr.s_addr >> 24;
+		a[1] = saddr.sin_addr.s_addr >>16;
+		a[2] = saddr.sin_addr.s_addr >>8;
+		a[3] = saddr.sin_addr.s_addr;
 		/* yeah, they broke this too
 		char *i = inet_ntoa(saddr.sin_addr);
  		 */
@@ -148,27 +148,40 @@ spc_netmount(char *address, Spuser *user, int dfltport,
 		//strerror_r(errno, error, sizeof(error));
 		strcpy(error, strerror(errno));
 		error[strlen(error)] = ':';
-		sprintf(&error[strlen(error)], "%d.%d.%d.%d", octet[3], octet[2], octet[1], octet[0]);
+		sprintf(&error[strlen(error)], "%d.%d.%d.%d", a[3], a[2], a[1], a[0]);
 //		sp_werror("Host :%s:%s", errno, i, error);
 		sp_werror(error, errno);
 		goto error;
 	}
 
 	free(addr);
+	addr = NULL;
 	fs = spc_mount(fd, NULL, user, auth, aux);
-	if (fs) {
-		snprintf(buf, sizeof(buf), "%s", inet_ntoa(saddr.sin_addr));
-		fs->raddr = strdup(buf);
-		
-		n = sizeof(saddr);
-		if (getsockname(fd, (struct sockaddr *) &saddr, (socklen_t *) &n) >= 0) {
-			snprintf(buf, sizeof(buf), "%s", inet_ntoa(saddr.sin_addr));
-			fs->laddr = strdup(buf);
-		}
+	if (!fs)
+		goto error;
 
-		if (spc_chatty)
-			fprintf(stderr, "connection %p to %s opened\n", fs, fs->raddr);
+	n = sizeof(saddr);
+	if (getsockname(fd, (struct sockaddr *) &saddr, &n) >= 0) {
+		a[0] = saddr.sin_addr.s_addr >> 24;
+		a[1] = saddr.sin_addr.s_addr >> 16;
+		a[2] = saddr.sin_addr.s_addr >> 8;
+		a[3] = saddr.sin_addr.s_addr;
+		snprintf(buf, sizeof(buf), "%d.%d.%d.%d", a[3], a[2], a[1], a[0]);
+		fs->laddr = strdup(buf);
 	}
+
+	n = sizeof(saddr);
+	if (getpeername(fd, (struct sockaddr *) &saddr, &n) >= 0) {
+		a[0] = saddr.sin_addr.s_addr >> 24;
+		a[1] = saddr.sin_addr.s_addr >> 16;
+		a[2] = saddr.sin_addr.s_addr >> 8;
+		a[3] = saddr.sin_addr.s_addr;
+		snprintf(buf, sizeof(buf), "%d.%d.%d.%d", a[3], a[2], a[1], a[0]);
+		fs->raddr = strdup(buf);
+	}
+
+	if (spc_chatty)
+		fprintf(stderr, "connection %p to %s opened\n", fs, fs->raddr);
 
 	return fs;
 
