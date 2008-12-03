@@ -456,8 +456,8 @@ spc_fd_write(Spcfsys *fs)
 static void
 spc_notify(Spfd *spfd, void *aux)
 {
-	int ecode, ec;
-	char *ename, *en;
+	int ecode;
+	char *ename;
 	Spcfsys *fs;
 
 	fs = aux;
@@ -485,17 +485,12 @@ spc_notify(Spfd *spfd, void *aux)
 		spc_disconnect_fsys(fs);
 
 error:
-	sp_rerror(&en, &ec);
-	if (ec) {
+	sp_rerror(&ename, &ecode);
+	if (ecode) {
 		if (spc_chatty)
-			fprintf(stderr, "Error: %s: %d\n", en, ec);
+			fprintf(stderr, "Error: %s: %d\n", ename, ecode);
 		sp_werror(NULL, 0);
 	}
-
-	if (ecode)
-		sp_werror(ename, ecode);
-
-	free(ename);
 	fs->in_notify--;
 }
 
