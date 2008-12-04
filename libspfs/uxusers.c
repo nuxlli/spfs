@@ -355,10 +355,8 @@ sp_init_user_groups(Spuser *u)
 
 	setgrent(); 
 	
-	if(u->dfltgroup) {
+	if(u->dfltgroup)
 		gids[0] = u->dfltgroup->gid;
-		n++;
-	}
 	
 	while ((g = getgrent()) != NULL) { 
 		for (i = 0; g->gr_mem[i]; i++) { 
@@ -372,15 +370,15 @@ sp_init_user_groups(Spuser *u)
 	
 	endgrent();
 
-	grps = sp_malloc(sizeof(*grps) * n);
+	grps = sp_malloc(sizeof(*grps) * (n+1));
 	if (!grps) {
 		free(gids);
 		return -1;
 	}
 	
-	for(i = 0; i < n; i++) {
+	for(i = 0; i <= n; i++) {
 		grps[i] = u->upool->gid2group(u->upool, gids[i]);
-		if (grps[i]) {
+		if (!grps[i]) {
 			free(grps);
 			return -1;
 		}
