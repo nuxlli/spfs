@@ -1,5 +1,6 @@
 SYSNAME:=${shell uname}
 SYSNAME!=uname
+MULTILIBPATH=${shell test -d /lib64 && echo lib64 || echo lib}
 HFILES=../include/spfs.h ../include/spclient.h spcimpl.h
 CFLAGS=-Wall -g -I ../include
 
@@ -28,9 +29,9 @@ libspclient.a: $(LIBFILES)
 
 install:
 	mkdir -p $(INSTALLPREFIX)/include
-	mkdir -p $(INSTALLPREFIX)/lib
+	mkdir -p $(INSTALLPREFIX)/$(MULTILIBPATH)
 	cp ../include/spclient.h $(INSTALLPREFIX)/include
-	cp libspclient.a $(INSTALLPREFIX)/lib
+	cp libspclient.a $(INSTALLPREFIX)/$(MULTILIBPATH)
 
 clean:
 	rm -f *.o *.a *~

@@ -1,5 +1,7 @@
 SYSNAME:=${shell uname}
 SYSNAME!=uname
+INSTALLPREFIX:=/usr/local
+export INSTALLPREFIX
 
 all: 
 	make -C libspfs
@@ -13,5 +15,5 @@ clean:
 	make -C fs clean
 
 install:
-	cp include/spfs.h /usr/local/include
-	cp libspfs/libspfs.a /usr/local/lib
+	make -C libspfs install
+	make -C libspclient install
