@@ -40,7 +40,7 @@ extern int spc_chatty;
 static void
 usage()
 {
-	fprintf(stderr, "9ls -d addr path\n");
+	fprintf(stderr, "9ls -d addr -p port path\n");
 	exit(1);
 }
 
@@ -48,19 +48,26 @@ int
 main(int argc, char **argv)
 {
 	int i, n;
-	int c;
-	char *addr;
-	char *path;
+	int c, port;
+	char *addr, *s, *path;
 	Spuser *user;
 	Spcfsys *fs;
 	Spcfid *fid;
 	Spwstat *stat;
+
+	port = 564;
 
 	user = sp_unix_users->uid2user(sp_unix_users, geteuid());
 	while ((c = getopt(argc, argv, "dp:")) != -1) {
 		switch (c) {
 		case 'd':
 			spc_chatty = 1;
+			break;
+
+		case 'p':
+			port = strtol(optarg, &s, 10);
+			if (*s != '\0')
+				usage();
 			break;
 
 		case 'u':
@@ -83,7 +90,7 @@ main(int argc, char **argv)
 	addr = argv[optind];
 	path = argv[optind+1];
 
-	fs = spc_netmount(addr, user, 564, NULL, NULL);
+	fs = spc_netmount(addr, user, port, NULL, NULL);
 
 	fid = spc_open(fs, path, Oread);
 	if (!fid) {
