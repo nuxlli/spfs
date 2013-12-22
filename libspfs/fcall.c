@@ -79,14 +79,14 @@ sp_auth(Spreq *req, Spfcall *tc)
 	}
 
 	afid = sp_fid_create(conn, tc->afid, NULL);
-	if (!afid) 
+	if (!afid)
 		goto done;
 	else
 		sp_fid_incref(afid);
 
 	if (tc->uname.len && tc->n_uname==~0) {
 		uname = sp_strdup(&tc->uname);
-		if (!uname) 
+		if (!uname)
 			goto done;
 
 		user = (*srv->upool->uname2user)(srv->upool, uname);
@@ -154,7 +154,7 @@ sp_attach(Spreq *req, Spfcall *tc)
 	fid = sp_fid_create(conn, tc->fid, NULL);
 	if (!fid)
 		goto done;
-	else 
+	else
 		sp_fid_incref(fid);
 
 	req->fid = fid;
@@ -165,16 +165,16 @@ sp_attach(Spreq *req, Spfcall *tc)
 			goto done;
 		}
 
-		if (!afid->type&Qtauth) {
-			sp_werror(Ebadusefid, EIO);
-			goto done;
-		}
-	} else 
+		/*if (!afid->type&Qtauth) {*/
+			/*sp_werror(Ebadusefid, EIO);*/
+			/*goto done;*/
+		/*}*/
+	} else
 		sp_fid_incref(afid);
 
 	if (tc->uname.len && tc->n_uname==~0) {
 		uname = sp_strdup(&tc->uname);
-		if (!uname) 
+		if (!uname)
 			goto done;
 
 		user = srv->upool->uname2user(srv->upool, uname);
@@ -264,7 +264,7 @@ sp_walk(Spreq *req, Spfcall *tc)
 	if (!fid) {
 		sp_werror(Eunknownfid, EIO);
 		goto done;
-	} else 
+	} else
 		sp_fid_incref(fid);
 
 	req->fid = fid;
@@ -340,7 +340,7 @@ sp_open(Spreq *req, Spfcall *tc)
 	if (!fid) {
 		sp_werror(Eunknownfid, EIO);
 		goto done;
-	} else 
+	} else
 		sp_fid_incref(fid);
 
 	req->fid = fid;
@@ -374,7 +374,7 @@ sp_create(Spreq *req, Spfcall *tc)
 	if (!fid) {
 		sp_werror(Eunknownfid, EIO);
 		goto done;
-	} else 
+	} else
 		sp_fid_incref(fid);
 
 	req->fid = fid;
@@ -399,7 +399,7 @@ sp_create(Spreq *req, Spfcall *tc)
 		goto done;
 	}
 
-	rc = (*conn->srv->create)(fid, &tc->name, tc->perm, tc->mode, 
+	rc = (*conn->srv->create)(fid, &tc->name, tc->perm, tc->mode,
 		&tc->extension);
 	if (rc && rc->type == Rcreate) {
 		fid->omode = tc->mode;
@@ -425,7 +425,7 @@ sp_read(Spreq *req, Spfcall *tc)
 	if (!fid) {
 		sp_werror(Eunknownfid, EIO);
 		goto done;
-	} else 
+	} else
 		sp_fid_incref(fid);
 
 	req->fid = fid;
@@ -441,7 +441,7 @@ sp_read(Spreq *req, Spfcall *tc)
 				goto done;
 
 			n = conn->srv->auth->read(fid, tc->offset, tc->count, rc->data);
-			if (n >= 0) 
+			if (n >= 0)
 				sp_set_rread_count(rc, n);
 			else {
 				free(rc);
@@ -462,7 +462,7 @@ sp_read(Spreq *req, Spfcall *tc)
 		sp_werror(Ebadoffset, EIO);
 		goto done;
 	}
-		
+
 	rc = (*conn->srv->read)(fid, tc->offset, tc->count, req);
 
 /*
@@ -489,7 +489,7 @@ sp_write(Spreq *req, Spfcall *tc)
 	if (!fid) {
 		sp_werror(Eunknownfid, EIO);
 		goto done;
-	} else 
+	} else
 		sp_fid_incref(fid);
 
 	req->fid = fid;
@@ -537,7 +537,7 @@ sp_clunk(Spreq *req, Spfcall *tc)
 	if (!fid) {
 		sp_werror(Eunknownfid, EIO);
 		goto done;
-	} else 
+	} else
 		sp_fid_incref(fid);
 
 	req->fid = fid;
@@ -581,7 +581,7 @@ sp_remove(Spreq *req, Spfcall *tc)
 	if (!fid) {
 		sp_werror(Eunknownfid, EIO);
 		goto done;
-	} else 
+	} else
 		sp_fid_incref(fid);
 
 	req->fid = fid;
@@ -606,7 +606,7 @@ sp_stat(Spreq *req, Spfcall *tc)
 	if (!fid) {
 		sp_werror(Eunknownfid, EIO);
 		goto done;
-	} else 
+	} else
 		sp_fid_incref(fid);
 
 	req->fid = fid;
@@ -632,7 +632,7 @@ sp_wstat(Spreq *req, Spfcall *tc)
 	if (!fid) {
 		sp_werror(Eunknownfid, EIO);
 		goto done;
-	} else 
+	} else
 		sp_fid_incref(fid);
 
 	req->fid = fid;

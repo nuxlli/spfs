@@ -274,9 +274,9 @@ again:
 		if (rc)
 			free(rc);
 
-		/* if there is not enough memory, use one of the 
+		/* if there is not enough memory, use one of the
 		   preallocated error responses */
-		if (ename == Enomem) 
+		if (ename == Enomem)
 			rc = sp_srv_get_enomem(conn->srv, conn->dotu);
 		else
 			rc = sp_create_rerror(ename, ecode, conn->dotu);
@@ -339,7 +339,7 @@ sp_respond_error(Spreq *req, char *ename, int ecode)
 }
 
 static Spfcall*
-sp_default_version(Spconn *conn, u32 msize, Spstr *version) 
+sp_default_version(Spconn *conn, u32 msize, Spstr *version)
 {
 	int dotu;
 	char *ver;
@@ -357,15 +357,16 @@ sp_default_version(Spconn *conn, u32 msize, Spstr *version)
 	else
 		ver = NULL;
 
-	if (msize < IOHDRSZ)
+	if (msize < IOHDRSZ) {
 		sp_werror("msize too small", EIO);
-	else if (ver) {
+  } else if (ver != NULL) {
 		sp_conn_reset(conn, msize, dotu);
 		rc = sp_create_rversion(msize, ver);
-	} else
+    return rc;
+	} else {
 		sp_werror("unsupported 9P version", EIO);
-
-	return rc;
+  }
+  return NULL;
 }
 
 static Spfcall*
