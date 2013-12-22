@@ -76,7 +76,7 @@ static Spfcall* npfs_attach(Spfid *fid, Spfid *afid, Spstr *uname, Spstr *aname,
 static int npfs_clone(Spfid *fid, Spfid *newfid);
 static int npfs_walk(Spfid *fid, Spstr *wname, Spqid *wqid);
 static Spfcall* npfs_open(Spfid *fid, u8 mode);
-static Spfcall* npfs_create(Spfid *fid, Spstr *name, u32 perm, u8 mode, 
+static Spfcall* npfs_create(Spfid *fid, Spstr *name, u32 perm, u8 mode,
 	Spstr *extension);
 static Spfcall* npfs_read(Spfid *fid, u64 offset, u32 count, Spreq *);
 static Spfcall* npfs_write(Spfid *fid, u64 offset, u32 count, u8 *data, Spreq *);
@@ -367,7 +367,7 @@ ustat2npwstat(char *path, struct stat *st, Spwstat *wstat, int dotu, Spuserpool 
 
 	u = up->uid2user(up, st->st_uid);
 	g = up->gid2group(up, st->st_gid);
-	
+
 	wstat->uid = u?u->uname:"???";
 	wstat->gid = g?g->gname:"???";
 	wstat->muid = "";
@@ -384,7 +384,7 @@ ustat2npwstat(char *path, struct stat *st, Spwstat *wstat, int dotu, Spuserpool 
 
 			ext[err] = '\0';
 		} else if (wstat->mode & Dmdevice) {
-			snprintf(ext, sizeof(ext), "%c %u %u", 
+			snprintf(ext, sizeof(ext), "%c %u %u",
 				S_ISCHR(st->st_mode)?'c':'b',
 				major(st->st_rdev), minor(st->st_rdev));
 		} else {
@@ -434,7 +434,7 @@ npfs_attach(Spfid *nfid, Spfid *nafid, Spstr *uname, Spstr *aname, u32 n_uname)
 		fid->path = strdup("/");
 	else
 		fid->path = sp_strdup(aname);
-	
+
 	nfid->aux = fid;
 	err = fidstat(fid);
 	if (err < 0) {
@@ -460,7 +460,7 @@ npfs_clone(Spfid *fid, Spfid *newfid)
 	nf->path = strdup(f->path);
 	newfid->aux = nf;
 
-	return 1;	
+	return 1;
 }
 
 
@@ -659,7 +659,7 @@ npfs_create(Spfid *fid, Spstr *name, u32 perm, u8 mode, Spstr *extension)
 			rmdir(npath);
 			goto out;
 		}
-		
+
 		f->dir = opendir(npath);
 		if (!f->dir) {
 			create_rerror(errno);
@@ -676,7 +676,7 @@ npfs_create(Spfid *fid, Spstr *name, u32 perm, u8 mode, Spstr *extension)
 			goto out;
 		}
 	} else {
-		f->fd = open(npath, O_CREAT|omode2uflags(mode), 
+		f->fd = open(npath, O_CREAT|omode2uflags(mode),
 			perm & 0777);
 		if (f->fd < 0) {
 			create_rerror(errno);
@@ -737,7 +737,7 @@ npfs_read_dir(Spfid *fid, u8* buf, u64 offset, u32 count, int dotu)
 
 		path = malloc(plen + strlen(dname) + 2);
 		sprintf(path, "%s/%s", f->path, dname);
-		
+
 		if (lstat(path, &st) < 0) {
 			free(path);
 			create_rerror(errno);
@@ -786,18 +786,18 @@ npfs_read(Spfid *fid, u64 offset, u32 count, Spreq *req)
 			n = count;
 			if(!f->aux) {
 				fstat(f->fd, &s);
-				f->aux=mmap(0, s.st_size, PROT_READ, 
+				f->aux=mmap(0, s.st_size, PROT_READ,
 						MAP_SHARED, f->fd, 0);
 				if(f->aux < 0) {
 					create_rerror(errno);
-					goto error;	
+					goto error;
 				}
 			}
 			if(offset+count > s.st_size)
 				n = s.st_size-offset;
 			if(n>0)
 				memcpy(ret->data, f->aux+offset, n);
-			else 
+			else
 				n = 0;
 		} else {
 			n = pread(f->fd, ret->data, count, offset);
@@ -957,7 +957,7 @@ npfs_wstat(Spfid *fid, Spstat *stat)
 	}
 
 	if (stat->mtime != (u32)~0) {
-		tb.actime = 0;
+		tb.actime = stat->atime;
 		tb.modtime = stat->mtime;
 		if (utime(f->path, &tb) < 0) {
 			create_rerror(errno);
@@ -1000,7 +1000,7 @@ npfs_wstat(Spfid *fid, Spstat *stat)
 		}
 	}
 	ret = sp_create_rwstat();
-	
+
 out:
 	return ret;
 }
