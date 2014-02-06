@@ -30,151 +30,151 @@
 Spfid**
 sp_fidpool_create(void)
 {
-	Spfid **ret;
+    Spfid **ret;
 
-	return calloc(FID_HTABLE_SIZE, sizeof(*ret));
+    return calloc(FID_HTABLE_SIZE, sizeof(*ret));
 }
 
 void
 sp_fidpool_destroy(Spfid **pool)
 {
-	int i;
-	Spfid *f, *ff;
-	Spsrv *srv;
+    int i;
+    Spfid *f, *ff;
+    Spsrv *srv;
 
-	for(i = 0; i < FID_HTABLE_SIZE; i++) {
-		f = pool[i];
-		while (f != NULL) {
-			ff = f->next;
-			srv = f->conn->srv;
-			if (f->type&Qtauth && srv->auth && srv->auth->clunk)
-				(*srv->auth->clunk)(f);
-			else if (!(f->type&Qtauth) && srv->fiddestroy)
-				(*srv->fiddestroy)(f);
-			free(f);
-			f = ff;
-		}
-	}
+    for(i = 0; i < FID_HTABLE_SIZE; i++) {
+        f = pool[i];
+        while (f != NULL) {
+            ff = f->next;
+            srv = f->conn->srv;
+            if (f->type&Qtauth && srv->auth && srv->auth->clunk)
+                (*srv->auth->clunk)(f);
+            else if (!(f->type&Qtauth) && srv->fiddestroy)
+                (*srv->fiddestroy)(f);
+            free(f);
+            f = ff;
+        }
+    }
 
-	free(pool);
+    free(pool);
 }
 
 Spfid*
 sp_fid_find(Spconn *conn, u32 fid)
 {
-	int hash;
-	Spfid **htable, *f, **prevp;
+    int hash;
+    Spfid **htable, *f, **prevp;
 
-	hash = fid % FID_HTABLE_SIZE;
-	htable = conn->fidpool;
-	if (!htable)
-		return NULL;
+    hash = fid % FID_HTABLE_SIZE;
+    htable = conn->fidpool;
+    if (!htable)
+        return NULL;
 
-	prevp = &htable[hash];
-	f = *prevp;
-	while (f != NULL) {
-		if (f->fid == fid) {
-			*prevp = f->next;
-			f->next = htable[hash];
-			htable[hash] = f;
-			break;
-		}
+    prevp = &htable[hash];
+    f = *prevp;
+    while (f != NULL) {
+        if (f->fid == fid) {
+            *prevp = f->next;
+            f->next = htable[hash];
+            htable[hash] = f;
+            break;
+        }
 
-		prevp = &f->next;
-		f = *prevp;
-	}
-	return f;
+        prevp = &f->next;
+        f = *prevp;
+    }
+    return f;
 }
 
 Spfid*
 sp_fid_create(Spconn *conn, u32 fid, void *aux)
 {
-	int hash;
-	Spfid **htable, *f;
+    int hash;
+    Spfid **htable, *f;
 
-	hash = fid % FID_HTABLE_SIZE;
-	htable = conn->fidpool;
-	if (!htable)
-		return NULL;
+    hash = fid % FID_HTABLE_SIZE;
+    htable = conn->fidpool;
+    if (!htable)
+        return NULL;
 
-	f = sp_fid_find(conn, fid);
-	if (f)
-		return NULL;
+    f = sp_fid_find(conn, fid);
+    if (f)
+        return NULL;
 
-	f = sp_malloc(sizeof(*f));
-	if (!f)
-		return NULL;
+    f = sp_malloc(sizeof(*f));
+    if (!f)
+        return NULL;
 
-	f->fid = fid;
-	f->conn = conn;
-	f->refcount = 0;
-	f->omode = ~0;
-	f->type = 0;
-	f->diroffset = 0;
-	f->user = NULL;
-	f->aux = aux;
+    f->fid = fid;
+    f->conn = conn;
+    f->refcount = 0;
+    f->omode = ~0;
+    f->type = 0;
+    f->diroffset = 0;
+    f->user = NULL;
+    f->aux = aux;
 
-	f->next = htable[hash];
-	htable[hash] = f;
+    f->next = htable[hash];
+    htable[hash] = f;
 
-	return f;
+    return f;
 }
 
 int
 sp_fid_destroy(Spfid *fid)
 {
-	int hash;
-	Spconn *conn;
-	Spsrv *srv;
-	Spfid **htable, *f, **prevp;
+    int hash;
+    Spconn *conn;
+    Spsrv *srv;
+    Spfid **htable, *f, **prevp;
 
-	conn = fid->conn;
-	hash = fid->fid % FID_HTABLE_SIZE;
-	htable = conn->fidpool;
-	if (!htable)
-		return 0;
+    conn = fid->conn;
+    hash = fid->fid % FID_HTABLE_SIZE;
+    htable = conn->fidpool;
+    if (!htable)
+        return 0;
 
-	prevp = &htable[hash];
-	f = *prevp;
-	while (f != NULL) {
-		if (f->fid == fid->fid) {
-			*prevp = f->next;
-			srv = f->conn->srv;
-			if (f->type & Qtauth && srv->auth && srv->auth->clunk)
-				(*srv->auth->clunk)(f);
-			else if (!(f->type&Qtauth) && srv->fiddestroy)
-				(*srv->fiddestroy)(f);
+    prevp = &htable[hash];
+    f = *prevp;
+    while (f != NULL) {
+        if (f->fid == fid->fid) {
+            *prevp = f->next;
+            srv = f->conn->srv;
+            if (f->type & Qtauth && srv->auth && srv->auth->clunk)
+                (*srv->auth->clunk)(f);
+            else if (!(f->type&Qtauth) && srv->fiddestroy)
+                (*srv->fiddestroy)(f);
 
-			if (f->user)
-				sp_user_decref(f->user);
+            if (f->user)
+                sp_user_decref(f->user);
 
-			free(f);
-			break;
-		}
+            free(f);
+            break;
+        }
 
-		prevp = &f->next;
-		f = *prevp;
-	}
-	return f != NULL;
+        prevp = &f->next;
+        f = *prevp;
+    }
+    return f != NULL;
 }
 
 void
 sp_fid_incref(Spfid *fid)
 {
-	if (!fid)
-		return;
+    if (!fid)
+        return;
 
-	fid->refcount++;
+    fid->refcount++;
 }
 
 void
 sp_fid_decref(Spfid *fid)
 {
-	if (!fid)
-		return;
+    if (!fid)
+        return;
 
-	fid->refcount--;
+    fid->refcount--;
 
-	if (!fid->refcount)
-		sp_fid_destroy(fid);
+    if (!fid->refcount)
+        sp_fid_destroy(fid);
 }

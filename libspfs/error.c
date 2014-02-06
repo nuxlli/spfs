@@ -36,65 +36,65 @@ static int sp_ecode;
 void *
 sp_malloc(int size)
 {
-	void *ret;
+    void *ret;
 
-	ret = malloc(size);
-	if (!ret)
-		sp_werror(Enomem, ENOMEM);
+    ret = malloc(size);
+    if (!ret)
+        sp_werror(Enomem, ENOMEM);
 
-	return ret;
+    return ret;
 }
 
 static void
 sp_vwerror(char *ename, int ecode, va_list ap)
 {
-	sp_ecode = ecode;
-	if (ename) {
-		vsnprintf(sp_ename, sizeof(sp_ename), ename, ap);
-	}
+    sp_ecode = ecode;
+    if (ename) {
+        vsnprintf(sp_ename, sizeof(sp_ename), ename, ap);
+    }
 }
 
 void
 sp_werror(char *ename, int ecode, ...)
 {
-	va_list ap;
+    va_list ap;
 
-	va_start(ap, ecode);
-	sp_vwerror(ename, ecode, ap);
-	va_end(ap);
+    va_start(ap, ecode);
+    sp_vwerror(ename, ecode, ap);
+    va_end(ap);
 }
 
 void
 sp_rerror(char **ename, int *ecode)
 {
-	*ename = NULL;
-	if (sp_ecode)
-		*ename = sp_ename;
-	*ecode = sp_ecode;
+    *ename = NULL;
+    if (sp_ecode)
+        *ename = sp_ename;
+    *ecode = sp_ecode;
 }
 
 int
 sp_haserror()
 {
-	return sp_ecode != 0;
+    return sp_ecode != 0;
 }
 
 void
 sp_uerror(int ecode)
 {
-	char *ename;
+    char *ename;
 
-	ename = strerror(ecode);
-	sp_werror(ename, ecode);
+    ename = strerror(ecode);
+    sp_werror(ename, ecode);
 }
 
 void
 sp_suerror(char *s, int ecode)
 {
-	char err[256];
-	char buf[512];
+    char err[256];
+    char buf[512];
 
-	strerror_r(ecode, err, sizeof(err));
-	snprintf(buf, sizeof(buf), "%s: %s", s, err);
-	sp_werror(buf, ecode);
+    strerror_r(ecode, err, sizeof(err));
+    snprintf(buf, sizeof(buf), "%s: %s", s, err);
+    sp_werror(buf, ecode);
 }

@@ -52,380 +52,380 @@ typedef struct Spfd Spfd;
 
 /* message types */
 enum {
-	Tfirst		= 100,
-	Tversion	= 100,
-	Rversion,
-	Tauth		= 102,
-	Rauth,
-	Tattach		= 104,
-	Rattach,
-	Terror		= 106,
-	Rerror,
-	Tflush		= 108,
-	Rflush,
-	Twalk		= 110,
-	Rwalk,
-	Topen		= 112,
-	Ropen,
-	Tcreate		= 114,
-	Rcreate,
-	Tread		= 116,
-	Rread,
-	Twrite		= 118,
-	Rwrite,
-	Tclunk		= 120,
-	Rclunk,
-	Tremove		= 122,
-	Rremove,
-	Tstat		= 124,
-	Rstat,
-	Twstat		= 126,
-	Rwstat,
-	Rlast
+    Tfirst        = 100,
+    Tversion    = 100,
+    Rversion,
+    Tauth        = 102,
+    Rauth,
+    Tattach        = 104,
+    Rattach,
+    Terror        = 106,
+    Rerror,
+    Tflush        = 108,
+    Rflush,
+    Twalk        = 110,
+    Rwalk,
+    Topen        = 112,
+    Ropen,
+    Tcreate        = 114,
+    Rcreate,
+    Tread        = 116,
+    Rread,
+    Twrite        = 118,
+    Rwrite,
+    Tclunk        = 120,
+    Rclunk,
+    Tremove        = 122,
+    Rremove,
+    Tstat        = 124,
+    Rstat,
+    Twstat        = 126,
+    Rwstat,
+    Rlast
 };
 
 /* modes */
 enum {
-	Oread		= 0x00,
-	Owrite		= 0x01,
-	Ordwr		= 0x02,
-	Oexec		= 0x03,
-	Oexcl		= 0x04,
-	Otrunc		= 0x10,
-	Orexec		= 0x20,
-	Orclose		= 0x40,
-	Oappend		= 0x80,
+    Oread        = 0x00,
+    Owrite        = 0x01,
+    Ordwr        = 0x02,
+    Oexec        = 0x03,
+    Oexcl        = 0x04,
+    Otrunc        = 0x10,
+    Orexec        = 0x20,
+    Orclose        = 0x40,
+    Oappend        = 0x80,
 
-	Ouspecial	= 0x100,	/* internal use */
+    Ouspecial    = 0x100,    /* internal use */
 };
 
 /* permissions */
 enum {
-	Dmdir		= 0x80000000,
-	Dmappend	= 0x40000000,
-	Dmexcl		= 0x20000000,
-	Dmmount		= 0x10000000,
-	Dmauth		= 0x08000000,
-	Dmtmp		= 0x04000000,
-	Dmsymlink	= 0x02000000,
-	Dmlink		= 0x01000000,
+    Dmdir        = 0x80000000,
+    Dmappend    = 0x40000000,
+    Dmexcl        = 0x20000000,
+    Dmmount        = 0x10000000,
+    Dmauth        = 0x08000000,
+    Dmtmp        = 0x04000000,
+    Dmsymlink    = 0x02000000,
+    Dmlink        = 0x01000000,
 
-	/* 9P2000.u extensions */
-	Dmdevice	= 0x00800000,
-	Dmnamedpipe	= 0x00200000,
-	Dmsocket	= 0x00100000,
-	Dmsetuid	= 0x00080000,
-	Dmsetgid	= 0x00040000,
+    /* 9P2000.u extensions */
+    Dmdevice    = 0x00800000,
+    Dmnamedpipe    = 0x00200000,
+    Dmsocket    = 0x00100000,
+    Dmsetuid    = 0x00080000,
+    Dmsetgid    = 0x00040000,
 };
 
 /* qid.types */
 enum {
-	Qtdir		= 0x80,
-	Qtappend	= 0x40,
-	Qtexcl		= 0x20,
-	Qtmount		= 0x10,
-	Qtauth		= 0x08,
-	Qttmp		= 0x04,
-	Qtsymlink	= 0x02,
-	Qtlink		= 0x01,
-	Qtfile		= 0x00,
+    Qtdir        = 0x80,
+    Qtappend    = 0x40,
+    Qtexcl        = 0x20,
+    Qtmount        = 0x10,
+    Qtauth        = 0x08,
+    Qttmp        = 0x04,
+    Qtsymlink    = 0x02,
+    Qtlink        = 0x01,
+    Qtfile        = 0x00,
 };
 
-#define NOTAG		(u16)(~0)
-#define NOFID		(u32)(~0)
-#define MAXWELEM	16
-#define IOHDRSZ		24
+#define NOTAG        (u16)(~0)
+#define NOFID        (u32)(~0)
+#define MAXWELEM    16
+#define IOHDRSZ        24
 #define FID_HTABLE_SIZE 64
 
 struct Spstr {
-	u16		len;
-	char*		str;
+    u16        len;
+    char*        str;
 };
 
 struct Spqid {
-	u8		type;
-	u32		version;
-	u64		path;
+    u8        type;
+    u32        version;
+    u64        path;
 };
 
 struct Spstat {
-	u16 		size;
-	u16 		type;
-	u32 		dev;
-	Spqid		qid;
-	u32 		mode;
-	u32 		atime;
-	u32 		mtime;
-	u64 		length;
-	Spstr		name;
-	Spstr		uid;
-	Spstr		gid;
-	Spstr		muid;
+    u16         size;
+    u16         type;
+    u32         dev;
+    Spqid        qid;
+    u32         mode;
+    u32         atime;
+    u32         mtime;
+    u64         length;
+    Spstr        name;
+    Spstr        uid;
+    Spstr        gid;
+    Spstr        muid;
 
-	/* 9P2000.u extensions */
-	Spstr		extension;
-	u32 		n_uid;
-	u32 		n_gid;
-	u32 		n_muid;
+    /* 9P2000.u extensions */
+    Spstr        extension;
+    u32         n_uid;
+    u32         n_gid;
+    u32         n_muid;
 };
 
 /* file metadata (stat) structure used to create Twstat message
-   It is similar to Spstat, but the strings don't point to 
+   It is similar to Spstat, but the strings don't point to
    the same memory block and should be freed separately
 */
 struct Spwstat {
-	u16 		size;
-	u16 		type;
-	u32 		dev;
-	Spqid		qid;
-	u32 		mode;
-	u32 		atime;
-	u32 		mtime;
-	u64 		length;
-	char*		name;
-	char*		uid;
-	char*		gid;
-	char*		muid;
-	char*		extension;	/* 9p2000.u extensions */
-	u32 		n_uid;		/* 9p2000.u extensions */
-	u32 		n_gid;		/* 9p2000.u extensions */
-	u32 		n_muid;		/* 9p2000.u extensions */
+    u16         size;
+    u16         type;
+    u32         dev;
+    Spqid        qid;
+    u32         mode;
+    u32         atime;
+    u32         mtime;
+    u64         length;
+    char*        name;
+    char*        uid;
+    char*        gid;
+    char*        muid;
+    char*        extension;    /* 9p2000.u extensions */
+    u32         n_uid;        /* 9p2000.u extensions */
+    u32         n_gid;        /* 9p2000.u extensions */
+    u32         n_muid;        /* 9p2000.u extensions */
 };
 
 struct Spfcall {
-	u32		size;
-	u8		type;
-	u16		tag;
-	u8*		pkt;
+    u32        size;
+    u8        type;
+    u16        tag;
+    u8*        pkt;
 
-	u32		fid;
-	u32		msize;			/* Tversion, Rversion */
-	Spstr		version;		/* Tversion, Rversion */
-	u32		afid;			/* Tauth, Tattach */
-	Spstr		uname;			/* Tauth, Tattach */
-	Spstr		aname;			/* Tauth, Tattach */
-	Spqid		qid;			/* Rauth, Rattach, Ropen, Rcreate */
-	Spstr		ename;			/* Rerror */
-	u16		oldtag;			/* Tflush */
-	u32		newfid;			/* Twalk */
-	u16		nwname;			/* Twalk */
-	Spstr		wnames[MAXWELEM];	/* Twalk */
-	u16		nwqid;			/* Rwalk */
-	Spqid		wqids[MAXWELEM];	/* Rwalk */
-	u8		mode;			/* Topen, Tcreate */
-	u32		iounit;			/* Ropen, Rcreate */
-	Spstr		name;			/* Tcreate */
-	u32		perm;			/* Tcreate */
-	u64		offset;			/* Tread, Twrite */
-	u32		count;			/* Tread, Rread, Twrite, Rwrite */
-	u8*		data;			/* Rread, Twrite */
-	Spstat		stat;			/* Rstat, Twstat */
+    u32        fid;
+    u32        msize;            /* Tversion, Rversion */
+    Spstr        version;        /* Tversion, Rversion */
+    u32        afid;            /* Tauth, Tattach */
+    Spstr        uname;            /* Tauth, Tattach */
+    Spstr        aname;            /* Tauth, Tattach */
+    Spqid        qid;            /* Rauth, Rattach, Ropen, Rcreate */
+    Spstr        ename;            /* Rerror */
+    u16        oldtag;            /* Tflush */
+    u32        newfid;            /* Twalk */
+    u16        nwname;            /* Twalk */
+    Spstr        wnames[MAXWELEM];    /* Twalk */
+    u16        nwqid;            /* Rwalk */
+    Spqid        wqids[MAXWELEM];    /* Rwalk */
+    u8        mode;            /* Topen, Tcreate */
+    u32        iounit;            /* Ropen, Rcreate */
+    Spstr        name;            /* Tcreate */
+    u32        perm;            /* Tcreate */
+    u64        offset;            /* Tread, Twrite */
+    u32        count;            /* Tread, Rread, Twrite, Rwrite */
+    u8*        data;            /* Rread, Twrite */
+    Spstat        stat;            /* Rstat, Twstat */
 
-	/* 9P2000.u extensions */
-	u32		ecode;			/* Rerror */
-	Spstr		extension;		/* Tcreate */
-	u32		n_uname;		/* Tauth, Tattach */
+    /* 9P2000.u extensions */
+    u32        ecode;            /* Rerror */
+    Spstr        extension;        /* Tcreate */
+    u32        n_uname;        /* Tauth, Tattach */
 
-	Spfcall*	next;
+    Spfcall*    next;
 };
 
 struct Spfid {
-	Spconn*		conn;
-	u32		fid;
-	int		refcount;
-	u16		omode;
-	u8		type;
-	u32		diroffset;
-	Spuser*		user;
-	void*		aux;
+    Spconn*        conn;
+    u32        fid;
+    int        refcount;
+    u16        omode;
+    u8        type;
+    u32        diroffset;
+    Spuser*        user;
+    void*        aux;
 
-	Spfid*		next;	/* list of fids within a bucket */
+    Spfid*        next;    /* list of fids within a bucket */
 };
 
 struct Spconn {
-	char*		address;	/* IP address!port */
-	u32		msize;
-	int		dotu;
-	int		shutdown;
-	int		fdin;
-	int		fdout;
-	Spfd*		spfdin;
-	Spfd*		spfdout;
-	Spsrv*		srv;
-	Spfid**		fidpool;
-	int		freercnum;
-	Spfcall*	freerclist;
+    char*        address;    /* IP address!port */
+    u32        msize;
+    int        dotu;
+    int        shutdown;
+    int        fdin;
+    int        fdout;
+    Spfd*        spfdin;
+    Spfd*        spfdout;
+    Spsrv*        srv;
+    Spfid**        fidpool;
+    int        freercnum;
+    Spfcall*    freerclist;
 
-	Spfcall*	ifcall;
-	int		ofcall_pos;
-	Spfcall*	ofcall_first;
-	Spfcall*	ofcall_last;
+    Spfcall*    ifcall;
+    int        ofcall_pos;
+    Spfcall*    ofcall_first;
+    Spfcall*    ofcall_last;
 
-	Spconn*		next;	/* list of connections within a server */
+    Spconn*        next;    /* list of connections within a server */
 };
 
 struct Spreq {
-	Spconn*		conn;
-	u16		tag;
-	Spfcall*	tcall;
-	Spfcall*	rcall;
-	int		cancelled;
-	int		responded;
-	Spreq*		flushreq;
-	Spfid*		fid;
+    Spconn*        conn;
+    u16        tag;
+    Spfcall*    tcall;
+    Spfcall*    rcall;
+    int        cancelled;
+    int        responded;
+    Spreq*        flushreq;
+    Spfid*        fid;
 
-	Spreq*		next;	/* list of all outstanding requests */
-	Spreq*		prev;	/* used for requests that are worked on */
+    Spreq*        next;    /* list of all outstanding requests */
+    Spreq*        prev;    /* used for requests that are worked on */
 };
 
 struct Spauth {
-	int		(*startauth)(Spfid *afid, char *aname, Spqid *aqid);
-	int		(*checkauth)(Spfid *fid, Spfid *afid, char *aname);
-	int		(*read)(Spfid *afid, u64 offset, u32 count, u8 *data);
-	int		(*write)(Spfid *afid, u64 offset, u32 count, u8 *data);
-	int		(*clunk)(Spfid *afid);
+    int        (*startauth)(Spfid *afid, char *aname, Spqid *aqid);
+    int        (*checkauth)(Spfid *fid, Spfid *afid, char *aname);
+    int        (*read)(Spfid *afid, u64 offset, u32 count, u8 *data);
+    int        (*write)(Spfid *afid, u64 offset, u32 count, u8 *data);
+    int        (*clunk)(Spfid *afid);
 };
 
 struct Spsrv {
-	u32		msize;
-	int		dotu;		/* 9P2000.u support flag */
-	void*		srvaux;
-	void*		treeaux;
-	int		debuglevel;
-	int		reent;
-	Spauth*		auth;
-	Spuserpool*	upool;
+    u32        msize;
+    int        dotu;        /* 9P2000.u support flag */
+    void*        srvaux;
+    void*        treeaux;
+    int        debuglevel;
+    int        reent;
+    Spauth*        auth;
+    Spuserpool*    upool;
 
-	void		(*start)(Spsrv *);
-	void		(*shutdown)(Spsrv *);
-	void		(*destroy)(Spsrv *);
-	void		(*connopen)(Spconn *);
-	void		(*connclose)(Spconn *);
-	void		(*fiddestroy)(Spfid *);
+    void        (*start)(Spsrv *);
+    void        (*shutdown)(Spsrv *);
+    void        (*destroy)(Spsrv *);
+    void        (*connopen)(Spconn *);
+    void        (*connclose)(Spconn *);
+    void        (*fiddestroy)(Spfid *);
 
-	Spfcall*	(*version)(Spconn *conn, u32 msize, Spstr *version);
-	Spfcall*	(*attach)(Spfid *fid, Spfid *afid, Spstr *uname, 
-				Spstr *aname, u32 n_uname);
-	Spfcall*	(*flush)(Spreq *req);
-	int		(*clone)(Spfid *fid, Spfid *newfid);
-	int		(*walk)(Spfid *fid, Spstr *wname, Spqid *wqid);
-	Spfcall*	(*open)(Spfid *fid, u8 mode);
-	Spfcall*	(*create)(Spfid *fid, Spstr* name, u32 perm, u8 mode, 
-				Spstr* extension);
-	Spfcall*	(*read)(Spfid *fid, u64 offset, u32 count, Spreq *req);
-	Spfcall*	(*write)(Spfid *fid, u64 offset, u32 count, u8 *data, 
-				Spreq *req);
-	Spfcall*	(*clunk)(Spfid *fid);
-	Spfcall*	(*remove)(Spfid *fid);
-	Spfcall*	(*stat)(Spfid *fid);
-	Spfcall*	(*wstat)(Spfid *fid, Spstat *stat);
+    Spfcall*    (*version)(Spconn *conn, u32 msize, Spstr *version);
+    Spfcall*    (*attach)(Spfid *fid, Spfid *afid, Spstr *uname,
+                Spstr *aname, u32 n_uname);
+    Spfcall*    (*flush)(Spreq *req);
+    int        (*clone)(Spfid *fid, Spfid *newfid);
+    int        (*walk)(Spfid *fid, Spstr *wname, Spqid *wqid);
+    Spfcall*    (*open)(Spfid *fid, u8 mode);
+    Spfcall*    (*create)(Spfid *fid, Spstr* name, u32 perm, u8 mode,
+                Spstr* extension);
+    Spfcall*    (*read)(Spfid *fid, u64 offset, u32 count, Spreq *req);
+    Spfcall*    (*write)(Spfid *fid, u64 offset, u32 count, u8 *data,
+                Spreq *req);
+    Spfcall*    (*clunk)(Spfid *fid);
+    Spfcall*    (*remove)(Spfid *fid);
+    Spfcall*    (*stat)(Spfid *fid);
+    Spfcall*    (*wstat)(Spfid *fid, Spstat *stat);
 
-	/* implementation specific */
-	int		nreqs;		/* number of simultaneously processed
-					   (reentrant) requests */
-	Spconn*		conns;
-	Spreq*		reqs_first;
-	Spreq*		reqs_last;
-	Spreq*		workreqs;
-	int		enomem;		/* if set, returning Enomem Rerror */
-	Spfcall*	rcenomem;	/* preallocated to send if no memory */
-	Spfcall*	rcenomemu;	/* same for .u connections */
+    /* implementation specific */
+    int        nreqs;        /* number of simultaneously processed
+                       (reentrant) requests */
+    Spconn*        conns;
+    Spreq*        reqs_first;
+    Spreq*        reqs_last;
+    Spreq*        workreqs;
+    int        enomem;        /* if set, returning Enomem Rerror */
+    Spfcall*    rcenomem;    /* preallocated to send if no memory */
+    Spfcall*    rcenomemu;    /* same for .u connections */
 };
 
 struct Spuser {
-	int			refcount;
-	Spuserpool*	upool;
-	char*		uname;
-	uid_t		uid;
-	Spgroup*	dfltgroup;
-	int		ngroups;
-	Spgroup**	groups;
-	void*		aux;
+    int            refcount;
+    Spuserpool*    upool;
+    char*        uname;
+    uid_t        uid;
+    Spgroup*    dfltgroup;
+    int        ngroups;
+    Spgroup**    groups;
+    void*        aux;
 
-	Spuser*		next;
+    Spuser*        next;
 };
 
 struct Spgroup {
-	int		refcount;
-	Spuserpool*	upool;
-	char*		gname;
-	gid_t		gid;
-	void*		aux;
+    int        refcount;
+    Spuserpool*    upool;
+    char*        gname;
+    gid_t        gid;
+    void*        aux;
 
-	Spgroup*	next;
+    Spgroup*    next;
 };
 
 struct Spuserpool {
-	void*		aux;
-	Spuser*		(*uname2user)(Spuserpool *, char *uname);
-	Spuser*		(*uid2user)(Spuserpool *, u32 uid);
-	Spgroup*	(*gname2group)(Spuserpool *, char *gname);
-	Spgroup*	(*gid2group)(Spuserpool *, u32 gid);
-	int		(*ismember)(Spuserpool *, Spuser *u, Spgroup *g);
-	void		(*udestroy)(Spuserpool *, Spuser *u);
-	void		(*gdestroy)(Spuserpool *, Spgroup *g);
+    void*        aux;
+    Spuser*        (*uname2user)(Spuserpool *, char *uname);
+    Spuser*        (*uid2user)(Spuserpool *, u32 uid);
+    Spgroup*    (*gname2group)(Spuserpool *, char *gname);
+    Spgroup*    (*gid2group)(Spuserpool *, u32 gid);
+    int        (*ismember)(Spuserpool *, Spuser *u, Spgroup *g);
+    void        (*udestroy)(Spuserpool *, Spuser *u);
+    void        (*gdestroy)(Spuserpool *, Spgroup *g);
 };
 
 struct Spfile {
-	int		refcount;
-	Spfile*		parent;
-	Spqid		qid;
-	u32		mode;
-	u32		atime;
-	u32		mtime;
-	u64		length;
-	char*		name;
-	Spuser*		uid;
-	Spgroup*	gid;
-	Spuser*		muid;
-	char*		extension;
-	int		excl;
-	void*		ops;
-	void*		aux;
+    int        refcount;
+    Spfile*        parent;
+    Spqid        qid;
+    u32        mode;
+    u32        atime;
+    u32        mtime;
+    u64        length;
+    char*        name;
+    Spuser*        uid;
+    Spgroup*    gid;
+    Spuser*        muid;
+    char*        extension;
+    int        excl;
+    void*        ops;
+    void*        aux;
 
-	/* not used -- provided for user's convenience */
-	Spfile*		next;
-	Spfile*		prev;
-	Spfile*		dirfirst;
-	Spfile*		dirlast;
+    /* not used -- provided for user's convenience */
+    Spfile*        next;
+    Spfile*        prev;
+    Spfile*        dirfirst;
+    Spfile*        dirlast;
 };
 
 struct Spfileops {
-//	Spuserpool*	upool;
-	void		(*ref)(Spfile *, Spfilefid *);
-	void		(*unref)(Spfile *, Spfilefid *);
-	int		(*read)(Spfilefid* file, u64 offset, u32 count, 
-				u8 *data, Spreq *req);
-	int		(*write)(Spfilefid* file, u64 offset, u32 count, 
-				u8 *data, Spreq *req);
-	int		(*wstat)(Spfile*, Spstat*);
-	void		(*destroy)(Spfile*);
-	int		(*openfid)(Spfilefid *);
-	void		(*closefid)(Spfilefid *);
+//    Spuserpool*    upool;
+    void        (*ref)(Spfile *, Spfilefid *);
+    void        (*unref)(Spfile *, Spfilefid *);
+    int        (*read)(Spfilefid* file, u64 offset, u32 count,
+                u8 *data, Spreq *req);
+    int        (*write)(Spfilefid* file, u64 offset, u32 count,
+                u8 *data, Spreq *req);
+    int        (*wstat)(Spfile*, Spstat*);
+    void        (*destroy)(Spfile*);
+    int        (*openfid)(Spfilefid *);
+    void        (*closefid)(Spfilefid *);
 };
 
 struct Spdirops {
-//	Spuserpool*	upool;
-	void		(*ref)(Spfile *, Spfilefid *);
-	void		(*unref)(Spfile *, Spfilefid *);
-	Spfile*		(*create)(Spfile *dir, char *name, u32 perm, 
-				Spuser *uid, Spgroup *gid, char *extension);
-	Spfile*		(*first)(Spfile *dir);
-	Spfile*		(*next)(Spfile *dir, Spfile *prevchild);
-	int		(*wstat)(Spfile*, Spstat*);
-	int		(*remove)(Spfile *dir, Spfile *file);
-	void		(*destroy)(Spfile*);
-	Spfilefid*	(*allocfid)(Spfile *);
-	void		(*destroyfid)(Spfilefid *);
+//    Spuserpool*    upool;
+    void        (*ref)(Spfile *, Spfilefid *);
+    void        (*unref)(Spfile *, Spfilefid *);
+    Spfile*        (*create)(Spfile *dir, char *name, u32 perm,
+                Spuser *uid, Spgroup *gid, char *extension);
+    Spfile*        (*first)(Spfile *dir);
+    Spfile*        (*next)(Spfile *dir, Spfile *prevchild);
+    int        (*wstat)(Spfile*, Spstat*);
+    int        (*remove)(Spfile *dir, Spfile *file);
+    void        (*destroy)(Spfile*);
+    Spfilefid*    (*allocfid)(Spfile *);
+    void        (*destroyfid)(Spfilefid *);
 };
 
 struct Spfilefid {
-	Spfid*		fid;
-	Spfile*		file;
-	int		omode;
-	void*		aux;
-	u64		diroffset;
-	Spfile*		dirent;
+    Spfid*        fid;
+    Spfile*        file;
+    int        omode;
+    void*        aux;
+    u64        diroffset;
+    Spfile*        dirent;
 };
 
 extern char *Eunknownfid;
@@ -547,8 +547,8 @@ void sp_uerror(int ecode);
 void sp_suerror(char *s, int ecode);
 int sp_haserror(void);
 
-Spfile* spfile_alloc(Spfile *parent, char *name, u32 mode, u64 qpath, 
-	void *ops, void *aux);
+Spfile* spfile_alloc(Spfile *parent, char *name, u32 mode, u64 qpath,
+    void *ops, void *aux);
 void spfile_incref(Spfile *);
 int spfile_decref(Spfile *);
 Spfile *spfile_find(Spfile *, char *);

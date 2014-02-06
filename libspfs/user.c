@@ -36,99 +36,99 @@ static Spuser *currentUser;
 void
 sp_user_incref(Spuser *u)
 {
-	if (!u)
-		return;
+    if (!u)
+        return;
 
-	u->refcount++;
+    u->refcount++;
 }
 
 void
 sp_user_decref(Spuser *u)
 {
-	int i;
-	if (!u)
-		return;
+    int i;
+    if (!u)
+        return;
 
-	u->refcount--;
-	if (u->refcount > 0)
-		return;
+    u->refcount--;
+    if (u->refcount > 0)
+        return;
 
-	if (u->upool->udestroy)
-		(*u->upool->udestroy)(u->upool, u);
+    if (u->upool->udestroy)
+        (*u->upool->udestroy)(u->upool, u);
 
-	for(i = 0; i < u->ngroups; i++)
-		sp_group_decref(u->groups[i]);
+    for(i = 0; i < u->ngroups; i++)
+        sp_group_decref(u->groups[i]);
 
-	sp_group_decref(u->dfltgroup);
-	free(u->groups);
-	free(u);
+    sp_group_decref(u->dfltgroup);
+    free(u->groups);
+    free(u);
 }
 
 void
 sp_group_incref(Spgroup *g)
 {
-	if (!g)
-		return;
+    if (!g)
+        return;
 
-	g->refcount++;
+    g->refcount++;
 }
 
 void
 sp_group_decref(Spgroup *g)
 {
-	if (!g)
-		return;
+    if (!g)
+        return;
 
-	g->refcount--;
-	if (g->refcount > 0)
-		return;
+    g->refcount--;
+    if (g->refcount > 0)
+        return;
 
-	if (g->upool->gdestroy)
-		(*g->upool->gdestroy)(g->upool, g);
+    if (g->upool->gdestroy)
+        (*g->upool->gdestroy)(g->upool, g);
 
-	free(g);
+    free(g);
 }
 
 int
 sp_change_user(Spuser *u)
 {
-	int i;
-	gid_t *gids;
+    int i;
+    gid_t *gids;
 
-	if (geteuid() == u->uid && u->dfltgroup && getegid() == u->dfltgroup->gid)
-		return 0;
+    if (geteuid() == u->uid && u->dfltgroup && getegid() == u->dfltgroup->gid)
+        return 0;
 
-	if (setreuid(0, 0) < 0) 
-		goto error;
+    if (setreuid(0, 0) < 0)
+        goto error;
 
-	gids = sp_malloc(u->ngroups * sizeof(gid_t));
-	if (!gids)
-		return -1;
+    gids = sp_malloc(u->ngroups * sizeof(gid_t));
+    if (!gids)
+        return -1;
 
-	for(i = 0; i < u->ngroups; i++)
-		gids[i] = u->groups[i]->gid;
+    for(i = 0; i < u->ngroups; i++)
+        gids[i] = u->groups[i]->gid;
 
-	if (u->ngroups > 0)
-		setgroups(u->ngroups, gids);
+    if (u->ngroups > 0)
+        setgroups(u->ngroups, gids);
 
-	if (u->dfltgroup && setregid(-1, u->dfltgroup->gid)<0)
-		goto error;
+    if (u->dfltgroup && setregid(-1, u->dfltgroup->gid)<0)
+        goto error;
 
-	if (setreuid(-1, u->uid) < 0)
-		goto error;
+    if (setreuid(-1, u->uid) < 0)
+        goto error;
 
-	sp_user_incref(u);
-	sp_user_decref(currentUser);
-	currentUser = u;
-	return 0;
+    sp_user_incref(u);
+    sp_user_decref(currentUser);
+    currentUser = u;
+    return 0;
 
 error:
-	sp_uerror(errno);
-	return -1;
+    sp_uerror(errno);
+    return -1;
 }
 
 Spuser *
 sp_current_user(void)
 {
-	return currentUser;
+    return currentUser;
 }
