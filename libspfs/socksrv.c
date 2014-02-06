@@ -80,13 +80,6 @@ sp_socksrv_create_common(int domain, int type, int proto)
 static int
 sp_socksrv_connect(Socksrv *ss)
 {
-    ss->sock = socket(ss->domain, ss->type, ss->proto);
-    if (ss->sock < 0) {
-        sp_suerror("cannot connect socket", errno);
-        return -1;
-    }
-
-    fcntl(ss->sock, F_SETFD, FD_CLOEXEC);
     if (bind(ss->sock, ss->saddr, ss->saddrlen) < 0) {
         sp_suerror("cannot bind socket", errno);
         return -1;
@@ -106,42 +99,42 @@ sp_socksrv_create_tcp(int *port)
     socklen_t n;
     Spsrv *srv;
     Socksrv *ss;
-    struct sockaddr_in* saddr;
+    int addrlen;
+    static struct sockaddr_in saddr;
+    char *address;
 
     ss = sp_socksrv_create_common(PF_INET, SOCK_STREAM, 0);
     if (!ss)
         return NULL;
 
-    saddr = sp_malloc(sizeof(*saddr));
-    if (!saddr)
-        return NULL;
+    addrlen = sizeof(saddr);
+    memset(&saddr, '\0', addrlen);
 
-    ss->saddr = (struct sockaddr *) saddr;
-    ss->saddrlen = sizeof(*saddr);
+    address = getenv("SPFS_IP");
+    if (!address) {
+      address = "127.0.0.1";
+    }
 
-    saddr->sin_family = AF_INET;
-    saddr->sin_port = htons(*port);
-    saddr->sin_addr.s_addr = htonl(INADDR_ANY);
+    saddr.sin_family = AF_INET;
+    saddr.sin_addr.s_addr = inet_addr(address);
+    saddr.sin_port = htons(*port);
+
+    ss->saddr = (struct sockaddr *) &saddr;
+    ss->saddrlen = addrlen;
+
     if (sp_socksrv_connect(ss) < 0) {
-        free(saddr);
         free(ss);
         return NULL;
     }
 
-    saddr->sin_port = 4242;
-    n = sizeof(*saddr);
     if (getsockname(ss->sock, ss->saddr, &n) < 0) {
         sp_suerror("cannot get socket address", errno);
-        free(saddr);
         free(ss);
         return NULL;
     }
-
-    *port = ntohs(saddr->sin_port);
 
     srv = sp_srv_create();
     if (!srv) {
-        free(ss->saddr);
         free(ss);
         return NULL;
     }
