@@ -1,0 +1,10 @@
+name = "spfs"
+version = "0.0.2"
+
+desc = "A simple and funcional p9 server"
+author = "Everton Ribeiro"
+license = "MIT/X11"
+url = "http://github.com/nuxlli/spfs"
+maintainer = "Everton Ribeiro"
+
+depends = { }
