@@ -50,11 +50,11 @@ sp_printperm(FILE *f, int perm)
         b[n++] = 'S';
     if (perm & Dmnamedpipe)
         b[n++] = 'P';
-        if (perm & Dmsymlink)
-                b[n++] = 'L';
-        b[n] = '\0';
+    if (perm & Dmsymlink)
+        b[n++] = 'L';
 
-        return fprintf(f, "%s%03o", b, perm&0777);
+    b[n] = '\0';
+    return fprintf(f, "%s%03o", b, perm&0777);
 }
 
 static int

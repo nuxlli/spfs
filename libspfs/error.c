@@ -51,7 +51,6 @@ sp_vwerror(char *ename, int ecode, va_list ap)
     sp_ecode = ecode;
     if (ename) {
         vsnprintf(sp_ename, sizeof(sp_ename), ename, ap);
-        printf("%s", sp_ename);
     }
 }
 

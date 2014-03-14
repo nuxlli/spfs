@@ -349,7 +349,10 @@ sp_default_version(Spconn *conn, u32 msize, Spstr *version)
         msize = conn->srv->msize;
 
     dotu = 0;
-    if (sp_strcmp(version, "9P2000.u")==0 && conn->srv->dotu) {
+    if (sp_strcmp(version, "9P2000.L") == 0 && conn->srv->dotu) {
+        ver = "9P2000.u";
+        dotu = 1;
+    } else if (sp_strcmp(version, "9P2000.u") == 0 && conn->srv->dotu) {
         ver = "9P2000.u";
         dotu = 1;
     } else if (sp_strncmp(version, "9P2000", 6) == 0)
